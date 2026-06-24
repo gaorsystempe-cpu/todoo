@@ -1,0 +1,6 @@
+{
+  "name": "todoo - GAORSYSTEM PERU",
+  "description": "Sistema de Información para los Negocios - Portal todoo de Comisiones, Lotes y Ventas POS.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
