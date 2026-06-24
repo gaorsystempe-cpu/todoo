@@ -784,44 +784,52 @@ async function startServer() {
       return res.status(400).json({ success: false, message: "Usuario y contraseña requeridos." });
     }
 
-    const db = await getDBAsync();
-    const user = db.users?.find(
-      (u: any) => u.username.toLowerCase().trim() === username.toLowerCase().trim() && u.password === password
-    );
+    try {
+      const db = await getDBAsync();
+      const user = db && Array.isArray(db.users) ? db.users.find(
+        (u: any) => u && typeof u.username === "string" && u.username.toLowerCase().trim() === username.toLowerCase().trim() && u.password === password
+      ) : null;
 
-    if (user) {
-      return res.json({
-        success: true,
-        user: {
-          username: user.username,
-          name: user.name,
-          role: user.role,
-          odoo_partner_id: user.odoo_partner_id
-        }
-      });
-    }
+      if (user) {
+        return res.json({
+          success: true,
+          user: {
+            username: user.username,
+            name: user.name,
+            role: user.role,
+            odoo_partner_id: user.odoo_partner_id
+          }
+        });
+      }
 
-    // Default system fallback administrator
-    if (username.toLowerCase().trim() === "soporte@facturaclic.pe" && password === "Luis2021.") {
-      return res.json({
-        success: true,
-        user: {
-          username: "soporte@facturaclic.pe",
-          name: "Luis Soporte (Admin)",
-          role: "admin"
-        }
-      });
-    }
+      // Default system fallback administrator
+      if (username.toLowerCase().trim() === "soporte@facturaclic.pe" && password === "Luis2021.") {
+        return res.json({
+          success: true,
+          user: {
+            username: "soporte@facturaclic.pe",
+            name: "Luis Soporte (Admin)",
+            role: "admin"
+          }
+        });
+      }
 
-    // Default system fallback demo user
-    if (username.toLowerCase().trim() === "demo@gaorsystem.pe" && password === "demo") {
-      return res.json({
-        success: true,
-        user: {
-          username: "demo@gaorsystem.pe",
-          name: "Demo User (Pruebas)",
-          role: "user"
-        }
+      // Default system fallback demo user
+      if (username.toLowerCase().trim() === "demo@gaorsystem.pe" && password === "demo") {
+        return res.json({
+          success: true,
+          user: {
+            username: "demo@gaorsystem.pe",
+            name: "Demo User (Pruebas)",
+            role: "user"
+          }
+        });
+      }
+    } catch (e: any) {
+      console.error("[Login Route Error]:", e);
+      return res.status(500).json({
+        success: false,
+        message: `Error interno de servidor: ${e.message || e}`
       });
     }
 
