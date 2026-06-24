@@ -1,0 +1,437 @@
+// Client-side API simulation fallback for static hosting environments (like Vercel)
+// This intercepts any failed or unavailable /api/* requests and processes them in localStorage.
+
+const DEFAULT_USERS = [
+  { username: "demo@gaorsystem.pe", password: "demo", name: "Demo User", role: "user" },
+  { username: "soporte@facturaclic.pe", password: "Luis2021.", name: "Luis Soporte", role: "admin" }
+];
+
+const DEFAULT_RULES = [
+  { productId: 101, type: "percentage", value: 3 },
+  { productId: 102, type: "percentage", value: 4 },
+  { productId: 103, type: "flat", value: 5 },
+  { productId: 105, type: "percentage", value: 5 },
+  { productId: 108, type: "flat", value: 10 }
+];
+
+const DEFAULT_PRODUCTS = [
+  { id: 101, display_name: "[PROD001] Laptop UltraSlim 15\" Intel Core i7", default_code: "PROD001", list_price: 1250.00 },
+  { id: 102, display_name: "[PROD002] Monitor Curvo Gamer 34\" QuadHD", default_code: "PROD002", list_price: 480.00 },
+  { id: 103, display_name: "[PROD003] Teclado Mecánico RGB Switch Blue", default_code: "PROD003", list_price: 85.00 },
+  { id: 104, display_name: "[PROD004] Mouse Ergonómico Inalámbrico Silent", default_code: "PROD004", list_price: 45.00 },
+  { id: 105, display_name: "[PROD005] Licencia Anual ERP Custom Premium", default_code: "PROD005", list_price: 2500.00 },
+  { id: 106, display_name: "[PROD006] Servicio de Instalación y Soporte Técnico", default_code: "PROD006", list_price: 150.00 },
+  { id: 107, display_name: "[PROD007] Auriculares Premium Noise Cancelling", default_code: "PROD007", list_price: 220.00 },
+  { id: 108, display_name: "[PROD008] Disco Duro Externo SSD NVMe 2TB", default_code: "PROD008", list_price: 180.00 },
+  { id: 109, display_name: "[PROD009] Cámara Web 4K Pro Ultra Streaming", default_code: "PROD009", list_price: 120.00 }
+];
+
+const DEFAULT_ORDERS = [
+  { id: 501, name: "SO001", date_order: "2026-06-01 10:15:30", user_id: [111, "Carlos Mendoza"], amount_total: 2980.00 },
+  { id: 502, name: "SO002", date_order: "2026-06-02 11:30:22", user_id: [112, "Sofía Altamirano"], amount_total: 5120.00 },
+  { id: 503, name: "SO003", date_order: "2026-06-03 14:45:10", user_id: [113, "Lucas Rivas"], amount_total: 1395.00 },
+  { id: 504, name: "SO004", date_order: "2026-06-04 09:05:45", user_id: [114, "Daniela Vargas"], amount_total: 2650.00 },
+  { id: 505, name: "SO005", date_order: "2026-06-05 16:20:00", user_id: [111, "Carlos Mendoza"], amount_total: 415.00 },
+  { id: 506, name: "SO006", date_order: "2026-06-08 11:10:05", user_id: [112, "Sofía Altamirano"], amount_total: 3670.00 },
+  { id: 507, name: "SO007", date_order: "2026-06-10 15:35:12", user_id: [113, "Lucas Rivas"], amount_total: 2500.00 },
+  { id: 508, name: "SO008", date_order: "2026-06-12 10:00:25", user_id: [114, "Daniela Vargas"], amount_total: 490.00 },
+  { id: 509, name: "SO009", date_order: "2026-06-15 12:40:19", user_id: [111, "Carlos Mendoza"], amount_total: 1515.00 },
+  { id: 510, name: "SO011", date_order: "2026-06-18 14:15:00", user_id: [112, "Sofía Altamirano"], amount_total: 5410.00 },
+  { id: 511, name: "SO012", date_order: "2026-06-20 09:20:45", user_id: [113, "Lucas Rivas"], amount_total: 1620.00 },
+  { id: 512, name: "SO013", date_order: "2026-06-21 16:50:30", user_id: [114, "Daniela Vargas"], amount_total: 7500.00 }
+];
+
+const DEFAULT_ORDER_LINES = [
+  { id: 2001, order_id: [501, "SO001"], product_id: [101, "Laptop UltraSlim 15\" Intel Core i7"], product_uom_qty: 2, price_unit: 1250.00, price_subtotal: 2500.00 },
+  { id: 2002, order_id: [501, "SO001"], product_id: [102, "Monitor Curvo Gamer 34\" QuadHD"], product_uom_qty: 1, price_unit: 480.00, price_subtotal: 480.00 },
+  { id: 2003, order_id: [502, "SO002"], product_id: [101, "Laptop UltraSlim 15\" Intel Core i7"], product_uom_qty: 3, price_unit: 1250.00, price_subtotal: 3750.00 },
+  { id: 2004, order_id: [502, "SO002"], product_id: [102, "Monitor Curvo Gamer 34\" QuadHD"], product_uom_qty: 2, price_unit: 480.00, price_subtotal: 960.00 },
+  { id: 2005, order_id: [502, "SO002"], product_id: [103, "Teclado Mecánico RGB Switch Blue"], product_uom_qty: 3, price_unit: 85.00, price_subtotal: 255.00 },
+  { id: 2006, order_id: [502, "SO002"], product_id: [104, "Mouse Ergonómico Inalámbrico Silent"], product_uom_qty: 3, price_unit: 45.00, price_subtotal: 155.00 },
+  { id: 2007, order_id: [503, "SO003"], product_id: [102, "Monitor Curvo Gamer 34\" QuadHD"], product_uom_qty: 2, price_unit: 480.00, price_subtotal: 960.00 },
+  { id: 2008, order_id: [503, "SO003"], product_id: [103, "Teclado Mecánico RGB Switch Blue"], product_uom_qty: 3, price_unit: 85.00, price_subtotal: 255.00 },
+  { id: 2009, order_id: [503, "SO003"], product_id: [108, "Disco Duro Externo SSD NVMe 2TB"], product_uom_qty: 1, price_unit: 180.00, price_subtotal: 180.00 },
+  { id: 2010, order_id: [504, "SO004"], product_id: [101, "Laptop UltraSlim 15\" Intel Core i7"], product_uom_qty: 2, price_unit: 1250.00, price_subtotal: 2500.00 },
+  { id: 2011, order_id: [504, "SO004"], product_id: [106, "Servicio de Instalación y Soporte Técnico"], product_uom_qty: 1, price_unit: 150.00, price_subtotal: 150.00 },
+  { id: 2012, order_id: [505, "SO005"], product_id: [103, "Teclado Mecánico RGB Switch Blue"], product_uom_qty: 2, price_unit: 85.00, price_subtotal: 170.00 },
+  { id: 2013, order_id: [505, "SO005"], product_id: [104, "Mouse Ergonómico Inalámbrico Silent"], product_uom_qty: 3, price_unit: 45.00, price_subtotal: 135.00 },
+  { id: 2014, order_id: [505, "SO005"], product_id: [109, "Cámara Web 4K Pro Ultra Streaming"], product_uom_qty: 1, price_unit: 110.00, price_subtotal: 110.00 },
+  { id: 2015, order_id: [506, "SO006"], product_id: [101, "Laptop UltraSlim 15\" Intel Core i7"], product_uom_qty: 2, price_unit: 1250.00, price_subtotal: 2500.00 },
+  { id: 2016, order_id: [506, "SO006"], product_id: [102, "Monitor Curvo Gamer 34\" QuadHD"], product_uom_qty: 2, price_unit: 480.00, price_subtotal: 960.00 },
+  { id: 2017, order_id: [506, "SO006"], product_id: [107, "Auriculares Premium Noise Cancelling"], product_uom_qty: 1, price_unit: 210.00, price_subtotal: 210.00 },
+  { id: 2018, order_id: [507, "SO007"], product_id: [105, "Licencia Anual ERP Custom Premium"], product_uom_qty: 1, price_unit: 2500.00, price_subtotal: 2500.00 },
+  { id: 2019, order_id: [508, "SO008"], product_id: [107, "Auriculares Premium Noise Cancelling"], product_uom_qty: 2, price_unit: 220.00, price_subtotal: 440.00 },
+  { id: 2020, order_id: [508, "SO008"], product_id: [106, "Servicio de Instalación y Soporte Técnico"], product_uom_qty: 1, price_unit: 50.00, price_subtotal: 50.00 },
+  { id: 2021, order_id: [509, "SO009"], product_id: [101, "Laptop UltraSlim 15\" Intel Core i7"], product_uom_qty: 1, price_unit: 1250.00, price_subtotal: 1250.00 },
+  { id: 2022, order_id: [509, "SO009"], product_id: [107, "Auriculares Premium Noise Cancelling"], product_uom_qty: 1, price_unit: 220.00, price_subtotal: 220.00 },
+  { id: 2023, order_id: [509, "SO009"], product_id: [104, "Mouse Ergonómico Inalámbrico Silent"], product_uom_qty: 1, price_unit: 45.00, price_subtotal: 45.00 },
+  { id: 2024, order_id: [510, "SO011"], product_id: [105, "Licencia Anual ERP Custom Premium"], product_uom_qty: 2, price_unit: 2500.00, price_subtotal: 5000.00 },
+  { id: 2025, order_id: [510, "SO011"], product_id: [108, "Disco Duro Externo SSD NVMe 2TB"], product_uom_qty: 2, price_unit: 180.00, price_subtotal: 360.00 },
+  { id: 2026, order_id: [510, "SO011"], product_id: [106, "Servicio de Instalación y Soporte Técnico"], product_uom_qty: 1, price_unit: 50.00, price_subtotal: 50.00 },
+  { id: 2027, order_id: [511, "SO012"], product_id: [101, "Laptop UltraSlim 15\" Intel Core i7"], product_uom_qty: 1, price_unit: 1250.00, price_subtotal: 1250.00 },
+  { id: 2028, order_id: [511, "SO012"], product_id: [102, "Monitor Curvo Gamer 34\" QuadHD"], product_uom_qty: 1, price_unit: 370.00, price_subtotal: 370.00 },
+  { id: 2029, order_id: [512, "SO013"], product_id: [105, "Licencia Anual ERP Custom Premium"], product_uom_qty: 3, price_unit: 2500.00, price_subtotal: 7500.00 }
+];
+
+const DEFAULT_EXPIRY_ALERTS = [
+  { id: 1, productName: "Laptop UltraSlim 15\" Intel Core i7", defaultCode: "PROD001", lotNumber: "LOTE-LP-2026A", expiryDate: "2026-06-15", daysRemaining: -7, stockQty: 3, location: "Almacén Principal A-12", status: "expired" },
+  { id: 2, productName: "Monitor Curvo Gamer 34\" QuadHD", defaultCode: "PROD002", lotNumber: "LOTE-MN-34Y2", expiryDate: "2026-07-15", daysRemaining: 23, stockQty: 8, location: "Almacén de Exhibición", status: "soon" },
+  { id: 3, productName: "Teclado Mecánico RGB Switch Blue", defaultCode: "PROD003", lotNumber: "LOTE-KB-BLUE8", expiryDate: "2026-07-02", daysRemaining: 10, stockQty: 25, location: "Estante Pasadizo 4", status: "soon" },
+  { id: 4, productName: "Mouse Ergonómico Inalámbrico Silent", defaultCode: "PROD004", lotNumber: "LOTE-MS-SIL03", expiryDate: "2026-07-20", daysRemaining: 28, stockQty: 40, location: "Caja de Reserva B", status: "soon" },
+  { id: 5, productName: "Auriculares Premium Noise Cancelling", defaultCode: "PROD007", lotNumber: "LOTE-AUD-NC09", expiryDate: "2026-07-05", daysRemaining: 13, stockQty: 15, location: "Almacén Principal A-15", status: "soon" },
+  { id: 6, productName: "Disco Duro Externo SSD NVMe 2TB", defaultCode: "PROD008", lotNumber: "LOTE-SSD-2TBX", expiryDate: "2026-09-12", daysRemaining: 82, stockQty: 12, location: "Estante Seguridad", status: "ok" },
+  { id: 7, productName: "Cámara Web 4K Pro Ultra Streaming", defaultCode: "PROD009", lotNumber: "LOTE-CAM-4KPRO", expiryDate: "2026-10-30", daysRemaining: 130, stockQty: 20, location: "Almacén Principal B-2", status: "ok" }
+];
+
+const DEFAULT_POS_REPORTS = [
+  {
+    date: "2026-06-22",
+    totalSales: 4520.00,
+    payments: [
+      { method: "Efectivo", amount: 1200.00 },
+      { method: "Yape / Plin", amount: 1850.00 },
+      { method: "Tarjeta de Crédito/Débito", amount: 1470.00 }
+    ],
+    products: [
+      { id: 101, name: "Laptop UltraSlim 15\" Intel Core i7", code: "PROD001", qty: 2, amount: 2500.00 },
+      { id: 102, name: "Monitor Curvo Gamer 34\" QuadHD", code: "PROD002", qty: 3, amount: 1440.00 },
+      { id: 103, name: "Teclado Mecánico RGB Switch Blue", code: "PROD003", qty: 5, amount: 425.00 },
+      { id: 104, name: "Mouse Ergonómico Inalámbrico Silent", code: "PROD004", qty: 3, amount: 135.00 },
+      { id: 106, name: "Servicio de Instalación y Soporte Técnico", code: "PROD006", qty: 1, amount: 20.00 }
+    ],
+    documents: [
+      { type: "Boleta de Venta Electrónica", count: 12, amount: 1820.00 },
+      { type: "Factura Electrónica", count: 4, amount: 2700.00 }
+    ]
+  },
+  {
+    date: "2026-06-21",
+    totalSales: 3870.00,
+    payments: [
+      { method: "Efectivo", amount: 850.00 },
+      { method: "Yape / Plin", amount: 1420.00 },
+      { method: "Tarjeta de Crédito/Débito", amount: 1600.00 }
+    ],
+    products: [
+      { id: 102, name: "Monitor Curvo Gamer 34\" QuadHD", code: "PROD002", qty: 4, amount: 1920.00 },
+      { id: 107, name: "Auriculares Premium Noise Cancelling", code: "PROD007", qty: 5, amount: 1100.00 },
+      { id: 103, name: "Teclado Mecánico RGB Switch Blue", code: "PROD003", qty: 10, amount: 850.00 }
+    ],
+    documents: [
+      { type: "Boleta de Venta Electrónica", count: 18, amount: 1250.00 },
+      { type: "Factura Electrónica", count: 3, amount: 2620.00 }
+    ]
+  },
+  {
+    date: "2026-06-20",
+    totalSales: 5410.00,
+    payments: [
+      { method: "Efectivo", amount: 1510.00 },
+      { method: "Yape / Plin", amount: 1900.00 },
+      { method: "Tarjeta de Crédito/Débito", amount: 2000.00 }
+    ],
+    products: [
+      { id: 105, name: "Licencia Anual ERP Custom Premium", code: "PROD005", qty: 2, amount: 5000.00 },
+      { id: 108, name: "Disco Duro Externo SSD NVMe 2TB", code: "PROD008", qty: 2, amount: 360.00 },
+      { id: 106, name: "Servicio de Instalación y Soporte Técnico", code: "PROD006", qty: 1, amount: 50.00 }
+    ],
+    documents: [
+      { type: "Boleta de Venta Electrónica", count: 8, amount: 410.00 },
+      { type: "Factura Electrónica", count: 2, amount: 5000.00 }
+    ]
+  }
+];
+
+const DEFAULT_POS_SESSIONS = [
+  { id: 1, name: "POS/2026/06/22-01", cashier: "Ana Ramos (Turno Mañana)", openingDate: "2026-06-22 08:00:00", closingDate: "2026-06-22 14:00:00", openingBalance: 200.00, closedAmount: 2620.00, totalRevenue: 2420.00, state: "Cerrado" },
+  { id: 2, name: "POS/2026/06/22-02", cashier: "Pedro Solano (Turno Tarde)", openingDate: "2026-06-22 14:00:00", closingDate: "2026-06-22 21:00:00", openingBalance: 200.00, closedAmount: 2300.00, totalRevenue: 2100.00, state: "Cerrado" },
+  { id: 3, name: "POS/2026/06/21-01", cashier: "Ana Ramos (Turno Mañana)", openingDate: "2026-06-21 08:00:00", closingDate: "2026-06-21 14:00:00", openingBalance: 150.00, closedAmount: 1950.00, totalRevenue: 1800.00, state: "Cerrado" },
+  { id: 4, name: "POS/2026/06/21-02", cashier: "Pedro Solano (Turno Tarde)", openingDate: "2026-06-21 14:00:00", closingDate: "2026-06-21 21:00:00", openingBalance: 150.00, closedAmount: 2220.00, totalRevenue: 2070.00, state: "Cerrado" },
+  { id: 5, name: "POS/2026/06/23-01", cashier: "Elena Castro (Turno Mañana)", openingDate: "2026-06-23 08:00:00", closingDate: "N/A", openingBalance: 200.00, closedAmount: 0.00, totalRevenue: 1450.00, state: "Abierto" }
+];
+
+const DEFAULT_POS_TRANSACTIONS = [
+  { id: 8001, sessionName: "POS/2026/06/22-01", invoiceName: "B001-000452", client: "Carlos Villacorta Prado", date: "2026-06-22 09:15:22", productName: "Laptop UltraSlim 15\" Intel Core i7", qty: 1, priceUnit: 1250.00, subtotal: 1250.00, paymentMethod: "Yape / Plin" },
+  { id: 8002, sessionName: "POS/2026/06/22-01", invoiceName: "B001-000453", client: "María de la Cruz Rojas", date: "2026-06-22 10:24:05", productName: "Teclado Mecánico RGB Switch Blue", qty: 2, priceUnit: 85.00, subtotal: 170.00, paymentMethod: "Efectivo" },
+  { id: 8003, sessionName: "POS/2026/06/22-01", invoiceName: "F001-000189", client: "Inversiones San José S.A.C.", date: "2026-06-22 11:42:18", productName: "Monitor Curvo Gamer 34\" QuadHD", qty: 2, priceUnit: 480.00, subtotal: 960.00, paymentMethod: "Tarjeta de Crédito/Débito" },
+  { id: 8004, sessionName: "POS/2026/06/22-01", invoiceName: "B001-000454", client: "José Luis Neyra", date: "2026-06-22 13:10:50", productName: "Mouse Ergonómico Inalámbrico Silent", qty: 1, priceUnit: 40.00, subtotal: 40.00, paymentMethod: "Yape / Plin" },
+  { id: 8005, sessionName: "POS/2026/06/22-02", invoiceName: "B001-000455", client: "Alejandra Gómez Reyna", date: "2026-06-22 15:05:11", productName: "Laptop UltraSlim 15\" Intel Core i7", qty: 1, priceUnit: 1250.00, subtotal: 1250.00, paymentMethod: "Tarjeta de Crédito/Débito" },
+  { id: 8006, sessionName: "POS/2026/06/22-02", invoiceName: "B001-000456", client: "Piero Alarcón Sifuentes", date: "2026-06-22 16:40:55", productName: "Monitor Curvo Gamer 34\" QuadHD", qty: 1, priceUnit: 480.00, subtotal: 480.00, paymentMethod: "Yape / Plin" },
+  { id: 8007, sessionName: "POS/2026/06/22-02", invoiceName: "B001-000457", client: "Clientes Varios", date: "2026-06-22 18:20:30", productName: "Teclado Mecánico RGB Switch Blue", qty: 3, priceUnit: 85.00, subtotal: 255.00, paymentMethod: "Efectivo" },
+  { id: 8008, sessionName: "POS/2026/06/22-02", invoiceName: "B001-000458", client: "Raúl Benavente", date: "2026-06-22 19:45:12", productName: "Mouse Ergonómico Inalámbrico Silent", qty: 2, priceUnit: 45.00, subtotal: 90.00, paymentMethod: "Efectivo" },
+  { id: 8009, sessionName: "POS/2026/06/22-02", invoiceName: "B001-000459", client: "Clientes Varios", date: "2026-06-22 20:30:11", productName: "Servicio de Instalación y Soporte Técnico", qty: 1, priceUnit: 25.00, subtotal: 25.00, paymentMethod: "Yape / Plin" },
+  { id: 8010, sessionName: "POS/2026/06/21-01", invoiceName: "B001-000430", client: "Diana Cáceres Wong", date: "2026-06-21 09:40:22", productName: "Monitor Curvo Gamer 34\" QuadHD", qty: 2, priceUnit: 480.00, subtotal: 960.00, paymentMethod: "Yape / Plin" },
+  { id: 8011, sessionName: "POS/2026/06/21-01", invoiceName: "B001-000431", client: "Marcos Sandoval Ruiz", date: "2026-06-21 11:15:10", productName: "Auriculares Premium Noise Cancelling", qty: 3, priceUnit: 220.00, subtotal: 660.00, paymentMethod: "Tarjeta de Crédito/Débito" },
+  { id: 8012, sessionName: "POS/2026/06/21-01", invoiceName: "B001-000432", client: "Clientes Varios", date: "2026-06-21 13:20:00", productName: "Teclado Mecánico RGB Switch Blue", qty: 2, priceUnit: 85.00, subtotal: 170.00, paymentMethod: "Efectivo" }
+];
+
+const LOCAL_STORAGE_KEY = "local_portal_db_data";
+
+function getLocalDB() {
+  const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
+  if (stored) {
+    try {
+      return JSON.parse(stored);
+    } catch (e) {
+      console.error("[API Mock] Error parsing localStorage database, resetting to default.", e);
+    }
+  }
+
+  const initial = {
+    users: [...DEFAULT_USERS],
+    rules: [...DEFAULT_RULES],
+    products: [...DEFAULT_PRODUCTS],
+    orders: [...DEFAULT_ORDERS],
+    orderLines: [...DEFAULT_ORDER_LINES],
+    expiryAlerts: [...DEFAULT_EXPIRY_ALERTS],
+    posReports: [...DEFAULT_POS_REPORTS],
+    posSessions: [...DEFAULT_POS_SESSIONS],
+    posTransactions: [...DEFAULT_POS_TRANSACTIONS]
+  };
+  localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(initial));
+  return initial;
+}
+
+function saveLocalDB(db: any) {
+  localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(db));
+}
+
+// Handler for all simulated API requests
+async function handleMockRequest(urlStr: string, init?: RequestInit): Promise<Response> {
+  const url = new URL(urlStr, window.location.origin);
+  const pathname = url.pathname;
+  const method = init?.method?.toUpperCase() || "GET";
+  
+  const db = getLocalDB();
+
+  // Helper to respond with JSON
+  const jsonResponse = (data: any, status = 200) => {
+    return new Response(JSON.stringify(data), {
+      status,
+      headers: { "Content-Type": "application/json" }
+    });
+  };
+
+  // Helper to parse JSON body
+  const getBody = () => {
+    try {
+      return init?.body ? JSON.parse(init.body as string) : {};
+    } catch (e) {
+      return {};
+    }
+  };
+
+  console.log(`[API Mock Simulating] ${method} ${pathname}`);
+
+  // 1. LOGIN
+  if (pathname === "/api/portal/login" && method === "POST") {
+    const { username, password } = getBody();
+    if (!username || !password) {
+      return jsonResponse({ success: false, message: "Usuario y contraseña requeridos." }, 400);
+    }
+
+    const matchedUser = db.users.find(
+      (u: any) => u.username?.toLowerCase().trim() === username.toLowerCase().trim() && u.password === password
+    );
+
+    if (matchedUser) {
+      return jsonResponse({
+        success: true,
+        user: {
+          username: matchedUser.username,
+          name: matchedUser.name,
+          role: matchedUser.role,
+          odoo_partner_id: matchedUser.odoo_partner_id
+        }
+      });
+    }
+
+    // Default fallback
+    if (username.toLowerCase().trim() === "soporte@facturaclic.pe" && password === "Luis2021.") {
+      return jsonResponse({
+        success: true,
+        user: {
+          username: "soporte@facturaclic.pe",
+          name: "Luis Soporte (Admin)",
+          role: "admin"
+        }
+      });
+    }
+
+    if (username.toLowerCase().trim() === "demo@gaorsystem.pe" && password === "demo") {
+      return jsonResponse({
+        success: true,
+        user: {
+          username: "demo@gaorsystem.pe",
+          name: "Demo User (Pruebas)",
+          role: "user"
+        }
+      });
+    }
+
+    return jsonResponse({ success: false, message: "Credenciales de acceso incorrectas o usuario no registrado." }, 401);
+  }
+
+  // 2. GET DB DATA
+  if (pathname === "/api/db/get-data" && method === "GET") {
+    return jsonResponse(db);
+  }
+
+  // 3. GET USERS
+  if (pathname === "/api/db/get-users" && method === "GET") {
+    return jsonResponse({ success: true, users: db.users });
+  }
+
+  // 4. SAVE USER
+  if (pathname === "/api/db/save-user" && method === "POST") {
+    const user = getBody();
+    if (!user || !user.username) {
+      return jsonResponse({ success: false, message: "Datos de usuario inválidos." }, 400);
+    }
+
+    const index = db.users.findIndex(
+      (u: any) => u.username?.toLowerCase().trim() === user.username.toLowerCase().trim()
+    );
+
+    if (index !== -1) {
+      db.users[index] = { ...db.users[index], ...user };
+    } else {
+      db.users.push(user);
+    }
+
+    saveLocalDB(db);
+    return jsonResponse({ success: true, message: "Usuario guardado exitosamente." });
+  }
+
+  // 5. REMOVE USER
+  if (pathname === "/api/db/remove-user" && method === "POST") {
+    const { username } = getBody();
+    if (!username) {
+      return jsonResponse({ success: false, message: "Usuario requerido." }, 400);
+    }
+
+    db.users = db.users.filter(
+      (u: any) => u.username?.toLowerCase().trim() !== username.toLowerCase().trim()
+    );
+
+    saveLocalDB(db);
+    return jsonResponse({ success: true, message: "Usuario eliminado." });
+  }
+
+  // 6. SAVE RULE
+  if (pathname === "/api/db/save-rule" && method === "POST") {
+    const rule = getBody();
+    const productId = Number(rule.productId);
+
+    if (!productId) {
+      return jsonResponse({ success: false, message: "ID de producto requerido." }, 400);
+    }
+
+    const index = db.rules.findIndex((r: any) => Number(r.productId) === productId);
+    if (index !== -1) {
+      db.rules[index] = { ...db.rules[index], ...rule, productId };
+    } else {
+      db.rules.push({ ...rule, productId });
+    }
+
+    saveLocalDB(db);
+    return jsonResponse({ success: true });
+  }
+
+  // 7. REMOVE RULE
+  if (pathname === "/api/db/remove-rule" && method === "POST") {
+    const { productId } = getBody();
+    const pId = Number(productId);
+
+    db.rules = db.rules.filter((r: any) => Number(r.productId) !== pId);
+    saveLocalDB(db);
+    return jsonResponse({ success: true });
+  }
+
+  // 8. ODOO AUTHENTICATE
+  if (pathname === "/api/odoo/authenticate" && method === "POST") {
+    // Return a dummy successful auth with typical companies to let them play with demo mode
+    return jsonResponse({
+      success: true,
+      uid: 2,
+      companies: [
+        { id: 1, name: "GAORSYSTEM PERU S.A.C." },
+        { id: 2, name: "CLIENTE DEMO S.A." }
+      ]
+    });
+  }
+
+  // 9. ODOO FETCH DATA (returns products, orders, orderlines etc)
+  if (pathname === "/api/odoo/fetch-data" && method === "POST") {
+    return jsonResponse({
+      success: true,
+      products: db.products,
+      orders: db.orders,
+      orderLines: db.orderLines,
+      expiryAlerts: db.expiryAlerts,
+      posReports: db.posReports,
+      posSessions: db.posSessions,
+      posTransactions: db.posTransactions
+    });
+  }
+
+  // 10. RESET DATABASE
+  if (pathname === "/api/db/reset" && method === "POST") {
+    localStorage.removeItem(LOCAL_STORAGE_KEY);
+    return jsonResponse({ success: true, message: "Base de datos local reestablecida." });
+  }
+
+  return jsonResponse({ error: "Endpoint no encontrado en simulador." }, 404);
+}
+
+// Install interceptor globally if there is no server or if fetch fails
+const originalFetch = window.fetch;
+const customFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+  const url = typeof input === "string" ? input : (input instanceof URL ? input.href : input instanceof Request ? input.url : "");
+  
+  if (url.startsWith("/api/") || url.includes("/api/")) {
+    const apiPath = url.substring(url.indexOf("/api/"));
+    try {
+      const response = await originalFetch(input, init);
+      // If we receive a gateway error, status 404 (common in static deploys) or status 502/504
+      if (response.status === 404 || response.status === 502 || response.status === 504) {
+        return await handleMockRequest(apiPath, init);
+      }
+      return response;
+    } catch (err) {
+      // TypeError: Failed to fetch (server is down or CORS block or no backend)
+      return await handleMockRequest(apiPath, init);
+    }
+  }
+
+  return originalFetch(input, init);
+};
+
+try {
+  Object.defineProperty(window, "fetch", {
+    value: customFetch,
+    configurable: true,
+    writable: true,
+    enumerable: true
+  });
+} catch (e: any) {
+  console.warn("[API Mock] Could not redefine window.fetch with Object.defineProperty directly on window:", e.message || e);
+  try {
+    Object.defineProperty(Window.prototype, "fetch", {
+      value: customFetch,
+      configurable: true,
+      writable: true,
+      enumerable: true
+    });
+    console.log("[API Mock] Successfully intercepted fetch via Window.prototype.");
+  } catch (protoErr: any) {
+    console.error("[API Mock] Failed to override fetch on Window.prototype:", protoErr.message || protoErr);
+    try {
+      (window as any).fetch = customFetch;
+    } catch (directErr: any) {
+      console.error("[API Mock] All methods to intercept window.fetch failed. Native fetch will be used:", directErr.message || directErr);
+    }
+  }
+}
+
+export {};
