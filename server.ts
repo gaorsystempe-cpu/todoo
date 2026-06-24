@@ -3,6 +3,11 @@ import path from "path";
 import xmlrpc from "xmlrpc";
 import fs from "fs";
 import { createServer as createViteServer } from "vite";
+import { createClient } from "@supabase/supabase-js";
+import dotenv from "dotenv";
+
+dotenv.config();
+
 
 const DB_FILE = path.join(process.cwd(), "local_supabase_db.json");
 
@@ -17,13 +22,32 @@ function saveDB(data: any) {
 function getDB() {
   if (fs.existsSync(DB_FILE)) {
     try {
-      return JSON.parse(fs.readFileSync(DB_FILE, "utf-8"));
+      const data = JSON.parse(fs.readFileSync(DB_FILE, "utf-8"));
+      if (!data.users) {
+        data.users = [
+          { username: "demo@gaorsystem.pe", password: "demo", name: "Demo User", role: "user" },
+          { username: "soporte@facturaclic.pe", password: "Luis2021.", name: "Luis Soporte", role: "admin" }
+        ];
+        saveDB(data);
+      } else {
+        // Also update existing user in memory if they have the old email
+        const oldIndex = data.users.findIndex((u: any) => u.username === "lsoporte@facturaclic.pe");
+        if (oldIndex !== -1) {
+          data.users[oldIndex].username = "soporte@facturaclic.pe";
+          saveDB(data);
+        }
+      }
+      return data;
     } catch (e) {
       console.error("Error parsing DB, recreating:", e);
     }
   }
 
   const initialData = {
+    users: [
+      { username: "demo@gaorsystem.pe", password: "demo", name: "Demo User", role: "user" },
+      { username: "soporte@facturaclic.pe", password: "Luis2021.", name: "Luis Soporte", role: "admin" }
+    ],
     rules: [
       { productId: 101, type: "percentage", value: 3 },
       { productId: 102, type: "percentage", value: 4 },
@@ -182,6 +206,197 @@ function getDB() {
 
   saveDB(initialData);
   return initialData;
+}
+
+// Supabase Client Initialization
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_KEY;
+const supabaseSchema = process.env.SUPABASE_SCHEMA || "todoo_control";
+
+let supabase: any = null;
+if (supabaseUrl && supabaseKey) {
+  try {
+    supabase = createClient(supabaseUrl, supabaseKey, {
+      db: {
+        schema: supabaseSchema
+      }
+    });
+    console.log(`[Supabase] Inicializado exitosamente para URL: ${supabaseUrl}, esquema: ${supabaseSchema}`);
+  } catch (err) {
+    console.error("[Supabase] Error al inicializar cliente:", err);
+  }
+} else {
+  console.log("[Supabase] Credenciales no detectadas. Usando almacenamiento JSON local.");
+}
+
+async function getDBAsync(): Promise<any> {
+  const localData = getDB();
+
+  if (!supabase) {
+    return localData;
+  }
+
+  try {
+    const [
+      rRules,
+      rProducts,
+      rOrders,
+      rOrderLines,
+      rExpiryAlerts,
+      rPosReports,
+      rPosSessions,
+      rPosTransactions
+    ] = await Promise.all([
+      supabase.from("commission_rules").select("*"),
+      supabase.from("cached_products").select("*"),
+      supabase.from("cached_sale_orders").select("*"),
+      supabase.from("cached_sale_order_lines").select("*"),
+      supabase.from("cached_expiry_alerts").select("*"),
+      supabase.from("cached_pos_daily_reports").select("*"),
+      supabase.from("cached_pos_sessions").select("*"),
+      supabase.from("cached_pos_transactions").select("*")
+    ]);
+
+    if (
+      rRules.error ||
+      rProducts.error ||
+      rOrders.error ||
+      rOrderLines.error ||
+      rExpiryAlerts.error ||
+      rPosReports.error ||
+      rPosSessions.error ||
+      rPosTransactions.error
+    ) {
+      console.warn(
+        `[Supabase] Advertencia al consultar tablas en esquema "${supabaseSchema}". ¿Están creadas? Usando respaldo local. Detalles:`,
+        {
+          commission_rules: rRules.error?.message,
+          cached_products: rProducts.error?.message,
+          cached_sale_orders: rOrders.error?.message,
+          cached_sale_order_lines: rOrderLines.error?.message,
+          cached_expiry_alerts: rExpiryAlerts.error?.message,
+          cached_pos_daily_reports: rPosReports.error?.message,
+          cached_pos_sessions: rPosSessions.error?.message,
+          cached_pos_transactions: rPosTransactions.error?.message
+        }
+      );
+      return localData;
+    }
+
+    // Try fetching users separately so it doesn't break if table doesn't exist
+    let remoteUsers = localData.users || [];
+    try {
+      const rUsers = await supabase.from("portal_users").select("*");
+      if (!rUsers.error && rUsers.data) {
+        remoteUsers = rUsers.data;
+      }
+    } catch (e) {
+      console.log("[Supabase] Tabla portal_users no disponible remota, usando local.");
+    }
+
+    // Seeding if database schema exists but is empty
+    if (rRules.data.length === 0 && rProducts.data.length === 0) {
+      console.log("[Supabase] Tablas del esquema vacías. Sembrando datos locales...");
+      await saveDBAsync(localData);
+      return localData;
+    }
+
+    return {
+      users: remoteUsers,
+      rules: rRules.data || [],
+      products: rProducts.data || [],
+      orders: rOrders.data || [],
+      orderLines: rOrderLines.data || [],
+      expiryAlerts: rExpiryAlerts.data || [],
+      posReports: rPosReports.data || [],
+      posSessions: rPosSessions.data || [],
+      posTransactions: rPosTransactions.data || []
+    };
+  } catch (err) {
+    console.error("[Supabase] Error de consulta. Usando respaldo local:", err);
+    return localData;
+  }
+}
+
+async function saveDBAsync(data: any): Promise<void> {
+  // Always save locally to ensure consistency
+  saveDB(data);
+
+  if (!supabase) {
+    return;
+  }
+
+  try {
+    console.log("[Supabase] Guardando y sincronizando con la base de datos remota...");
+
+    const syncTable = async (tableName: string, rows: any[]) => {
+      if (!Array.isArray(rows)) return;
+      if (rows.length === 0) {
+        await supabase.from(tableName).delete().neq("id", -9999);
+        return;
+      }
+      const { error } = await supabase.from(tableName).upsert(rows);
+      if (error) {
+        console.error(`[Supabase] Error en tabla ${tableName}:`, error.message);
+      }
+    };
+
+    const syncRules = async (rows: any[]) => {
+      if (!Array.isArray(rows)) return;
+      if (rows.length === 0) {
+        await supabase.from("commission_rules").delete().neq("productId", -9999);
+        return;
+      }
+      const { error } = await supabase.from("commission_rules").upsert(rows);
+      if (error) {
+        console.error("[Supabase] Error en tabla commission_rules:", error.message);
+      }
+    };
+
+    const syncPosReports = async (rows: any[]) => {
+      if (!Array.isArray(rows)) return;
+      if (rows.length === 0) {
+        await supabase.from("cached_pos_daily_reports").delete().neq("date", "1900-01-01");
+        return;
+      }
+      const { error } = await supabase.from("cached_pos_daily_reports").upsert(rows);
+      if (error) {
+        console.error("[Supabase] Error en tabla cached_pos_daily_reports:", error.message);
+      }
+    };
+
+    const syncUsers = async (rows: any[]) => {
+      if (!Array.isArray(rows)) return;
+      try {
+        if (rows.length === 0) {
+          await supabase.from("portal_users").delete().neq("username", "___none___");
+          return;
+        }
+        const { error } = await supabase.from("portal_users").upsert(rows);
+        if (error) {
+          console.warn("[Supabase] Advertencia en tabla portal_users (¿está creada?):", error.message);
+        }
+      } catch (e) {
+        console.log("[Supabase] Error al sincronizar portal_users remota:", e);
+      }
+    };
+
+    await Promise.all([
+      syncRules(data.rules),
+      syncTable("cached_products", data.products),
+      syncTable("cached_sale_orders", data.orders),
+      syncTable("cached_sale_order_lines", data.orderLines),
+      syncTable("cached_expiry_alerts", data.expiryAlerts),
+      syncPosReports(data.posReports),
+      syncTable("cached_pos_sessions", data.posSessions),
+      syncTable("cached_pos_transactions", data.posTransactions),
+      syncUsers(data.users || [])
+    ]);
+
+    console.log("[Supabase] Sincronización exitosa con el VPS.");
+  } catch (err) {
+    console.error("[Supabase] Error general de sincronización:", err);
+  }
 }
 
 async function startServer() {
@@ -463,7 +678,7 @@ async function startServer() {
       }
 
       // Merge into local DB
-      const dbData = getDB();
+      const dbData = await getDBAsync();
       dbData.products = Array.isArray(products) ? products : dbData.products;
       dbData.orders = odooOrders.length > 0 ? odooOrders : dbData.orders;
       dbData.orderLines = Array.isArray(orderLines) ? orderLines : dbData.orderLines;
@@ -524,7 +739,7 @@ async function startServer() {
         dbData.posTransactions = txs;
       }
 
-      saveDB(dbData);
+      await saveDBAsync(dbData);
 
       return res.json({
         success: true,
@@ -547,8 +762,8 @@ async function startServer() {
   });
 
   // API Route: Get local Supabase-like DB data
-  app.get("/api/db/get-data", (req, res) => {
-    const db = getDB();
+  app.get("/api/db/get-data", async (req, res) => {
+    const db = await getDBAsync();
     res.json({
       success: true,
       rules: db.rules,
@@ -562,45 +777,169 @@ async function startServer() {
     });
   });
 
+  // API Route: Secure Portal Login (supports soporte@facturaclic.pe and custom database users)
+  app.post("/api/portal/login", async (req, res) => {
+    const { username, password } = req.body;
+    if (!username || !password) {
+      return res.status(400).json({ success: false, message: "Usuario y contraseña requeridos." });
+    }
+
+    const db = await getDBAsync();
+    const user = db.users?.find(
+      (u: any) => u.username.toLowerCase().trim() === username.toLowerCase().trim() && u.password === password
+    );
+
+    if (user) {
+      return res.json({
+        success: true,
+        user: {
+          username: user.username,
+          name: user.name,
+          role: user.role,
+          odoo_partner_id: user.odoo_partner_id
+        }
+      });
+    }
+
+    // Default system fallback administrator
+    if (username.toLowerCase().trim() === "soporte@facturaclic.pe" && password === "Luis2021.") {
+      return res.json({
+        success: true,
+        user: {
+          username: "soporte@facturaclic.pe",
+          name: "Luis Soporte (Admin)",
+          role: "admin"
+        }
+      });
+    }
+
+    // Default system fallback demo user
+    if (username.toLowerCase().trim() === "demo@gaorsystem.pe" && password === "demo") {
+      return res.json({
+        success: true,
+        user: {
+          username: "demo@gaorsystem.pe",
+          name: "Demo User (Pruebas)",
+          role: "user"
+        }
+      });
+    }
+
+    return res.status(401).json({
+      success: false,
+      message: "Credenciales de acceso incorrectas. Por favor verifique e intente nuevamente."
+    });
+  });
+
+  // API Route: Get all portal users
+  app.get("/api/db/get-users", async (req, res) => {
+    const db = await getDBAsync();
+    res.json({ success: true, users: db.users || [] });
+  });
+
+  // API Route: Save/Update portal user
+  app.post("/api/db/save-user", async (req, res) => {
+    const { username, password, name, role, odoo_partner_id } = req.body;
+    if (!username || !password || !name) {
+      return res.status(400).json({ success: false, message: "Parámetros incompletos." });
+    }
+
+    const db = await getDBAsync();
+    if (!db.users) db.users = [];
+
+    const existingIndex = db.users.findIndex((u: any) => u.username.toLowerCase().trim() === username.toLowerCase().trim());
+    const newUser = {
+      username: username.toLowerCase().trim(),
+      password,
+      name,
+      role: role || "user",
+      odoo_partner_id: odoo_partner_id ? parseInt(odoo_partner_id, 10) : null
+    };
+
+    if (existingIndex >= 0) {
+      db.users[existingIndex] = newUser;
+    } else {
+      db.users.push(newUser);
+    }
+
+    await saveDBAsync(db);
+    res.json({ success: true, users: db.users });
+  });
+
+  // API Route: Remove portal user
+  app.post("/api/db/remove-user", async (req, res) => {
+    const { username } = req.body;
+    if (!username) {
+      return res.status(400).json({ success: false, message: "username es requerido." });
+    }
+
+    const db = await getDBAsync();
+    if (!db.users) db.users = [];
+
+    db.users = db.users.filter((u: any) => u.username.toLowerCase().trim() !== username.toLowerCase().trim());
+    await saveDBAsync(db);
+
+    res.json({ success: true, users: db.users });
+  });
+
   // API Route: Save/Update a commission rule in local DB
-  app.post("/api/db/save-rule", (req, res) => {
+  app.post("/api/db/save-rule", async (req, res) => {
     const { productId, type, value } = req.body;
     if (!productId || !type || value === undefined) {
       return res.status(400).json({ success: false, message: "Parámetros incompletos." });
     }
 
-    const db = getDB();
+    const db = await getDBAsync();
     const existingIndex = db.rules.findIndex((r: any) => r.productId === productId);
     if (existingIndex >= 0) {
       db.rules[existingIndex] = { productId, type, value: parseFloat(value) };
     } else {
       db.rules.push({ productId, type, value: parseFloat(value) });
     }
-    saveDB(db);
+    await saveDBAsync(db);
 
     res.json({ success: true, rules: db.rules });
   });
 
   // API Route: Remove a commission rule
-  app.post("/api/db/remove-rule", (req, res) => {
+  app.post("/api/db/remove-rule", async (req, res) => {
     const { productId } = req.body;
     if (!productId) {
       return res.status(400).json({ success: false, message: "productId es requerido." });
     }
 
-    const db = getDB();
+    const db = await getDBAsync();
     db.rules = db.rules.filter((r: any) => r.productId !== productId);
-    saveDB(db);
+    await saveDBAsync(db);
 
     res.json({ success: true, rules: db.rules });
   });
 
   // API Route: Reset DB to defaults
-  app.post("/api/db/reset", (req, res) => {
+  app.post("/api/db/reset", async (req, res) => {
     if (fs.existsSync(DB_FILE)) {
       fs.unlinkSync(DB_FILE);
     }
-    const db = getDB();
+
+    if (supabase) {
+      try {
+        console.log("[Supabase] Reseteando tablas en el VPS...");
+        await Promise.all([
+          supabase.from("commission_rules").delete().neq("productId", -9999),
+          supabase.from("cached_products").delete().neq("id", -9999),
+          supabase.from("cached_sale_orders").delete().neq("id", -9999),
+          supabase.from("cached_sale_order_lines").delete().neq("id", -9999),
+          supabase.from("cached_expiry_alerts").delete().neq("id", -9999),
+          supabase.from("cached_pos_daily_reports").delete().neq("date", "1900-01-01"),
+          supabase.from("cached_pos_sessions").delete().neq("id", -9999),
+          supabase.from("cached_pos_transactions").delete().neq("id", -9999)
+        ]);
+      } catch (err) {
+        console.error("[Supabase] Error al limpiar tablas remotas en reset:", err);
+      }
+    }
+
+    const db = await getDBAsync();
     res.json({
       success: true,
       rules: db.rules,

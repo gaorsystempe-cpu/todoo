@@ -20,7 +20,7 @@ export default function OdooPortalLogin({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
@@ -31,19 +31,39 @@ export default function OdooPortalLogin({
 
     setLoading(true);
 
-    // Simulate standard secure enterprise portal authentication
-    setTimeout(() => {
-      onChangeConnection({
-        ...connection,
-        username: username,
-        isConnected: true,
-        isDemoMode: true,
-        companyId: 1,
-        companyName: "GAORSYSTEM PERU"
+    try {
+      const response = await fetch("/api/portal/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: username.trim(),
+          password: password.trim()
+        })
       });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        const isAdmin = data.user.role === "admin";
+        onChangeConnection({
+          ...connection,
+          username: username.trim(),
+          password: password.trim(),
+          isConnected: false, // will connect Odoo database next
+          isDemoMode: !isAdmin, // demo mode for non-admin tests
+          companyId: isAdmin ? 0 : 1,
+          companyName: isAdmin ? "Configurar Conexión ERP" : "GAORSYSTEM PERU"
+        });
+        onLoginSuccess();
+      } else {
+        setError(data.message || "Credenciales de acceso incorrectas.");
+      }
+    } catch (err) {
+      console.error(err);
+      setError("Error de comunicación con el servidor. Verifique su conexión.");
+    } finally {
       setLoading(false);
-      onLoginSuccess();
-    }, 800);
+    }
   };
 
   const handleAutofillDemo = () => {
@@ -148,22 +168,24 @@ export default function OdooPortalLogin({
             </div>
           )}
 
-          {/* Quick demo credentials display & autofill button */}
-          <div className="mb-6 p-4 bg-purple-50/70 rounded-2xl border border-purple-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="space-y-0.5">
-              <span className="text-[10px] font-black uppercase text-[#714B67] tracking-wider block">Acceso de Demostración</span>
-              <div className="text-[11px] text-slate-600 font-medium space-y-0.5">
-                <div><span className="font-bold text-slate-700">Usuario:</span> demo@gaorsystem.pe</div>
-                <div><span className="font-bold text-slate-700">Contraseña:</span> demo</div>
+          {/* Quick credentials display & autofill button */}
+          <div className="mb-6">
+            <div className="p-3 bg-purple-50/70 rounded-2xl border border-purple-100 flex items-center justify-between gap-3 shadow-xs">
+              <div className="space-y-0.5">
+                <span className="text-[9px] font-black uppercase text-[#714B67] tracking-wider block">Acceso de Demostración</span>
+                <div className="text-[10px] text-slate-600 font-medium leading-tight">
+                  <div><span className="font-bold text-slate-700">Usuario:</span> demo@gaorsystem.pe</div>
+                  <div><span className="font-bold text-slate-700">Contraseña:</span> demo</div>
+                </div>
               </div>
+              <button
+                type="button"
+                onClick={handleAutofillDemo}
+                className="px-3.5 py-1.5 text-[10px] font-black text-[#714B67] hover:text-white bg-purple-100/80 hover:bg-[#714B67] border border-purple-200 rounded-lg transition-all cursor-pointer whitespace-nowrap"
+              >
+                Cargar Demo
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={handleAutofillDemo}
-              className="px-3.5 py-1.5 text-[10px] font-extrabold text-[#714B67] hover:text-white bg-purple-100/80 hover:bg-[#714B67] border border-purple-200 hover:border-[#714B67] rounded-xl transition-all cursor-pointer shadow-xs whitespace-nowrap self-start sm:self-center"
-            >
-              Autocompletar
-            </button>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">

@@ -18,10 +18,10 @@ export default function OdooConnectionForm({
   const [error, setError] = useState<string | null>(null);
   const [companies, setCompanies] = useState<OdooCompany[]>([]);
   const [formValues, setFormValues] = useState({
-    url: connection.url || "http://demo.odoo.com:8069",
-    db: connection.db || "odoo-database",
-    username: connection.username || "sales@example.com",
-    password: ""
+    url: connection.url || "",
+    db: connection.db || "",
+    username: connection.username || "",
+    password: connection.password || ""
   });
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {

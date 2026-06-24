@@ -5,6 +5,8 @@ import OdooPortalLogin from "./components/OdooPortalLogin";
 import SalesDashboard from "./components/SalesDashboard";
 import ExpiryAlertsList from "./components/ExpiryAlertsList";
 import PosDailySum from "./components/PosDailySum";
+import OdooConnectionForm from "./components/OdooConnectionForm";
+import PortalUserManagement from "./components/PortalUserManagement";
 import SalespersonDetailsModal from "./components/SalespersonDetailsModal";
 import { Grid, Layers, Percent, BarChart3, ShieldAlert, BadgeInfo, Play, Cpu, CheckCircle, Calendar, ShoppingBag, Settings, LogOut, AppWindow, Sparkles, Building2, UserCheck, RefreshCw } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
@@ -14,7 +16,7 @@ export default function App() {
     return false;
   });
 
-  const [activeTab, setActiveTab] = useState<"comisiones" | "caducidad" | "ventas_pos">("comisiones");
+  const [activeTab, setActiveTab] = useState<"comisiones" | "caducidad" | "ventas_pos" | "configuracion">("comisiones");
   const [showAppSwitcher, setShowAppSwitcher] = useState<boolean>(true);
 
   // Connection settings
@@ -78,6 +80,14 @@ export default function App() {
       setPosTransactions(MOCK_POS_TRANSACTIONS);
     }
   }, [connection.isDemoMode]);
+
+  // Redirect administrator to Odoo connection settings on first real login
+  useEffect(() => {
+    if (isLoggedIn && !connection.isDemoMode && !connection.isConnected) {
+      setActiveTab("configuracion");
+      setShowAppSwitcher(false);
+    }
+  }, [isLoggedIn, connection.isDemoMode, connection.isConnected]);
 
   const handleConnectionChange = (newConn: OdooConnection) => {
     setConnection(newConn);
@@ -200,7 +210,7 @@ export default function App() {
     });
   };
 
-  const handleAppSelect = (tab: "comisiones" | "caducidad" | "ventas_pos") => {
+  const handleAppSelect = (tab: "comisiones" | "caducidad" | "ventas_pos" | "configuracion") => {
     setActiveTab(tab);
     setShowAppSwitcher(false);
   };
@@ -261,6 +271,12 @@ export default function App() {
                     <span>Ventas POS Diarias</span>
                   </>
                 )}
+                {activeTab === "configuracion" && (
+                  <>
+                    <Settings className="h-4 w-4 text-indigo-400" />
+                    <span>Configuración Odoo & Portal</span>
+                  </>
+                )}
               </span>
             </div>
           </div>
@@ -296,6 +312,16 @@ export default function App() {
               }`}
             >
               Auditoría POS
+            </button>
+            <button
+              onClick={() => handleAppSelect("configuracion")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                activeTab === "configuracion"
+                  ? "bg-white text-[#714B67] shadow-sm"
+                  : "text-purple-100 hover:text-white hover:bg-white/5"
+              }`}
+            >
+              Configuración ERP
             </button>
           </div>
 
@@ -355,7 +381,7 @@ export default function App() {
               </div>
 
               {/* Launcher Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 max-w-3xl mx-auto">
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-6 max-w-5xl mx-auto">
                 
                 {/* Module 1 */}
                 <button
@@ -401,6 +427,22 @@ export default function App() {
                     <h3 className="text-base font-bold text-white block">Ventas Diarias POS</h3>
                     <p className="text-[11px] text-slate-400 mt-1 line-clamp-2">
                       Métricas diarias del punto de venta por método de pago y tipo de boleta/factura.
+                    </p>
+                  </div>
+                </button>
+
+                {/* Module 4 */}
+                <button
+                  onClick={() => handleAppSelect("configuracion")}
+                  className="bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 p-6 rounded-2xl text-left transition-all hover:-translate-y-1 flex flex-col justify-between h-48 cursor-pointer group"
+                >
+                  <div className="p-3 bg-indigo-600 text-white rounded-xl w-fit group-hover:scale-105 transition-transform">
+                    <Settings className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-white block">Configuración ERP</h3>
+                    <p className="text-[11px] text-slate-400 mt-1 line-clamp-2">
+                      Conecte a su Odoo real mediante XML-RPC y configure los accesos para su personal.
                     </p>
                   </div>
                 </button>
@@ -489,6 +531,28 @@ export default function App() {
                   posTransactions={posTransactions}
                   isDemoMode={connection.isDemoMode}
                   onRefresh={handleManualSync}
+                />
+              </motion.div>
+            )}
+
+            {activeTab === "configuracion" && (
+              <motion.div
+                key="configuracion-enterprise"
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -15 }}
+                transition={{ duration: 0.2 }}
+                className="space-y-6"
+              >
+                <OdooConnectionForm
+                  connection={connection}
+                  onChangeConnection={handleConnectionChange}
+                  onDataLoaded={handleRealOdooDataLoaded}
+                />
+                
+                <PortalUserManagement
+                  orders={orders}
+                  currentUsername={connection.username}
                 />
               </motion.div>
             )}
