@@ -15,7 +15,7 @@ export default function App() {
   });
 
   const [activeTab, setActiveTab] = useState<"comisiones" | "caducidad" | "ventas_pos">("comisiones");
-  const [showAppSwitcher, setShowAppSwitcher] = useState<boolean>(false);
+  const [showAppSwitcher, setShowAppSwitcher] = useState<boolean>(true);
 
   // Connection settings
   const [connection, setConnection] = useState<OdooConnection>({
@@ -192,6 +192,7 @@ export default function App() {
 
   const handleLogout = () => {
     setIsLoggedIn(false);
+    setShowAppSwitcher(true);
     // Reset connection state partially
     setConnection({
       ...connection,
@@ -211,7 +212,10 @@ export default function App() {
         connection={connection}
         onChangeConnection={handleConnectionChange}
         onDataLoaded={handleRealOdooDataLoaded}
-        onLoginSuccess={() => setIsLoggedIn(true)}
+        onLoginSuccess={() => {
+          setIsLoggedIn(true);
+          setShowAppSwitcher(true);
+        }}
       />
     );
   }
