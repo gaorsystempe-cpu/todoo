@@ -257,6 +257,23 @@ async function getDBAsync(): Promise<any> {
       supabase.from("cached_pos_transactions").select("*")
     ]);
 
+    const hasAuthError = [
+      rRules, rProducts, rOrders, rOrderLines, rExpiryAlerts, rPosReports, rPosSessions, rPosTransactions
+    ].some(res => res.error && (
+      res.error.message?.includes("Invalid authentication credentials") || 
+      res.error.message?.includes("invalid_cors") ||
+      res.error.message?.includes("JWT") ||
+      res.error.message?.includes("apiKey") ||
+      res.error.status === 401 ||
+      res.error.status === 403
+    ));
+
+    if (hasAuthError) {
+      console.warn("[Supabase] Credenciales de autenticación inválidas o expiradas detectadas. Desactivando cliente de Supabase para evitar fallas e interrupciones. Se utilizará base de datos local.");
+      supabase = null;
+      return localData;
+    }
+
     if (
       rRules.error ||
       rProducts.error ||
@@ -327,57 +344,88 @@ async function saveDBAsync(data: any): Promise<void> {
   }
 
   try {
+    if (!supabase) return;
     console.log("[Supabase] Guardando y sincronizando con la base de datos remota...");
 
+    const checkErrorAndDisableIfNeeded = (error: any, context: string) => {
+      if (!error) return;
+      console.error(`[Supabase] Error en ${context}:`, error.message);
+      if (
+        error.message?.includes("Invalid authentication credentials") ||
+        error.message?.includes("invalid_cors") ||
+        error.message?.includes("JWT") ||
+        error.message?.includes("apiKey") ||
+        error.status === 401 ||
+        error.status === 403
+      ) {
+        console.warn("[Supabase] Credenciales de autenticación inválidas detectadas durante sincronización. Desconectando Supabase.");
+        supabase = null;
+      }
+    };
+
     const syncTable = async (tableName: string, rows: any[]) => {
-      if (!Array.isArray(rows)) return;
+      if (!supabase || !Array.isArray(rows)) return;
       if (rows.length === 0) {
-        await supabase.from(tableName).delete().neq("id", -9999);
+        try {
+          const { error } = await supabase.from(tableName).delete().neq("id", -9999);
+          checkErrorAndDisableIfNeeded(error, `borrado tabla ${tableName}`);
+        } catch (e: any) {
+          console.warn(`[Supabase] Error al borrar en tabla ${tableName}:`, e.message || e);
+        }
         return;
       }
       const { error } = await supabase.from(tableName).upsert(rows);
-      if (error) {
-        console.error(`[Supabase] Error en tabla ${tableName}:`, error.message);
-      }
+      checkErrorAndDisableIfNeeded(error, `tabla ${tableName}`);
     };
 
     const syncRules = async (rows: any[]) => {
-      if (!Array.isArray(rows)) return;
+      if (!supabase || !Array.isArray(rows)) return;
       if (rows.length === 0) {
-        await supabase.from("commission_rules").delete().neq("productId", -9999);
+        try {
+          const { error } = await supabase.from("commission_rules").delete().neq("productId", -9999);
+          checkErrorAndDisableIfNeeded(error, "borrado tabla commission_rules");
+        } catch (e: any) {
+          console.warn("[Supabase] Error al borrar en tabla commission_rules:", e.message || e);
+        }
         return;
       }
       const { error } = await supabase.from("commission_rules").upsert(rows);
-      if (error) {
-        console.error("[Supabase] Error en tabla commission_rules:", error.message);
-      }
+      checkErrorAndDisableIfNeeded(error, "tabla commission_rules");
     };
 
     const syncPosReports = async (rows: any[]) => {
-      if (!Array.isArray(rows)) return;
+      if (!supabase || !Array.isArray(rows)) return;
       if (rows.length === 0) {
-        await supabase.from("cached_pos_daily_reports").delete().neq("date", "1900-01-01");
+        try {
+          const { error } = await supabase.from("cached_pos_daily_reports").delete().neq("date", "1900-01-01");
+          checkErrorAndDisableIfNeeded(error, "borrado tabla cached_pos_daily_reports");
+        } catch (e: any) {
+          console.warn("[Supabase] Error al borrar en tabla cached_pos_daily_reports:", e.message || e);
+        }
         return;
       }
       const { error } = await supabase.from("cached_pos_daily_reports").upsert(rows);
-      if (error) {
-        console.error("[Supabase] Error en tabla cached_pos_daily_reports:", error.message);
-      }
+      checkErrorAndDisableIfNeeded(error, "tabla cached_pos_daily_reports");
     };
 
     const syncUsers = async (rows: any[]) => {
-      if (!Array.isArray(rows)) return;
+      if (!supabase || !Array.isArray(rows)) return;
       try {
         if (rows.length === 0) {
-          await supabase.from("portal_users").delete().neq("username", "___none___");
+          const { error } = await supabase.from("portal_users").delete().neq("username", "___none___");
+          checkErrorAndDisableIfNeeded(error, "borrado tabla portal_users");
           return;
         }
         const { error } = await supabase.from("portal_users").upsert(rows);
         if (error) {
-          console.warn("[Supabase] Advertencia en tabla portal_users (¿está creada?):", error.message);
+          if (error.message?.includes("relation") || error.message?.includes("does not exist")) {
+            console.warn("[Supabase] Advertencia: tabla portal_users no creada en VPS remoto.");
+          } else {
+            checkErrorAndDisableIfNeeded(error, "tabla portal_users");
+          }
         }
-      } catch (e) {
-        console.log("[Supabase] Error al sincronizar portal_users remota:", e);
+      } catch (e: any) {
+        console.log("[Supabase] Error al sincronizar portal_users remota:", e.message || e);
       }
     };
 
@@ -393,7 +441,9 @@ async function saveDBAsync(data: any): Promise<void> {
       syncUsers(data.users || [])
     ]);
 
-    console.log("[Supabase] Sincronización exitosa con el VPS.");
+    if (supabase) {
+      console.log("[Supabase] Sincronización exitosa con el VPS.");
+    }
   } catch (err) {
     console.error("[Supabase] Error general de sincronización:", err);
   }
@@ -524,33 +574,59 @@ async function startServer() {
 
       console.log(`Consiguiendo datos para la compañía ID: ${companyIdInt} en Odoo.`);
 
+      const dbData = await getDBAsync();
+
       // 1. Fetch sellable products (to set commission rules in front-end)
       // product.product is preferred in Odoo for actual sellable SKU variants
-      console.log("Consultando productos...");
-      const products = await makeOdooCall(url, "/xmlrpc/2/object", "execute_kw", [
-        db,
-        uidInt,
-        password,
-        "product.product",
-        "search_read",
-        [[["sale_ok", "=", true]]],
-        { fields: ["id", "display_name", "default_code", "list_price"] }
-      ]);
+      let products: any[] = [];
+      try {
+        console.log("Consultando productos...");
+        const result = await makeOdooCall(url, "/xmlrpc/2/object", "execute_kw", [
+          db,
+          uidInt,
+          password,
+          "product.product",
+          "search_read",
+          [[["sale_ok", "=", true]]],
+          { fields: ["id", "display_name", "default_code", "list_price"] }
+        ]);
+        if (Array.isArray(result)) {
+          products = result;
+        } else {
+          console.warn("[Odoo] No se devolvió un array de productos. Usando respaldo local.");
+          products = dbData.products || [];
+        }
+      } catch (err: any) {
+        console.warn("[Odoo] Fallo al consultar productos (product.product). Usando respaldo local:", err.message || err);
+        products = dbData.products || [];
+      }
 
       // 2. Fetch sales orders filtered by company & state (confirmed sales)
-      console.log("Consultando órdenes de venta...");
-      const orders = await makeOdooCall(url, "/xmlrpc/2/object", "execute_kw", [
-        db,
-        uidInt,
-        password,
-        "sale.order",
-        "search_read",
-        [[
-          ["company_id", "=", companyIdInt],
-          ["state", "in", ["sale", "done"]]
-        ]],
-        { fields: ["id", "name", "date_order", "user_id", "amount_total"] }
-      ]);
+      let orders: any[] = [];
+      try {
+        console.log("Consultando órdenes de venta...");
+        const result = await makeOdooCall(url, "/xmlrpc/2/object", "execute_kw", [
+          db,
+          uidInt,
+          password,
+          "sale.order",
+          "search_read",
+          [[
+            ["company_id", "=", companyIdInt],
+            ["state", "in", ["sale", "done"]]
+          ]],
+          { fields: ["id", "name", "date_order", "user_id", "amount_total"] }
+        ]);
+        if (Array.isArray(result)) {
+          orders = result;
+        } else {
+          console.warn("[Odoo] No se devolvió un array de órdenes de venta. Usando respaldo local.");
+          orders = dbData.orders || [];
+        }
+      } catch (err: any) {
+        console.warn("[Odoo] Fallo al consultar órdenes de venta (sale.order). Usando respaldo local:", err.message || err);
+        orders = dbData.orders || [];
+      }
 
       let orderLines: any[] = [];
       const odooOrders = Array.isArray(orders) ? orders : [];
@@ -559,41 +635,159 @@ async function startServer() {
         const orderIds = odooOrders.map((o: any) => o.id);
         console.log(`Se encontraron ${orderIds.length} órdenes. Consultando líneas de venta correspondientes...`);
 
-        // 3. Fetch order lines for these orders
-        orderLines = await makeOdooCall(url, "/xmlrpc/2/object", "execute_kw", [
-          db,
-          uidInt,
-          password,
-          "sale.order.line",
-          "search_read",
-          [[["order_id", "in", orderIds]]],
-          { fields: ["id", "order_id", "product_id", "product_uom_qty", "price_unit", "price_subtotal"] }
-        ]);
+        try {
+          // 3. Fetch order lines for these orders
+          const result = await makeOdooCall(url, "/xmlrpc/2/object", "execute_kw", [
+            db,
+            uidInt,
+            password,
+            "sale.order.line",
+            "search_read",
+            [[["order_id", "in", orderIds]]],
+            { fields: ["id", "order_id", "product_id", "product_uom_qty", "price_unit", "price_subtotal"] }
+          ]);
+          if (Array.isArray(result)) {
+            orderLines = result;
+          } else {
+            orderLines = dbData.orderLines || [];
+          }
+        } catch (err: any) {
+          console.warn("[Odoo] Fallo al consultar líneas de venta (sale.order.line). Usando respaldo local:", err.message || err);
+          orderLines = dbData.orderLines || [];
+        }
       } else {
         console.log("No se encontraron órdenes de venta confirmadas para esta compañía.");
+        orderLines = dbData.orderLines || [];
       }
 
-      // 4. Try fetching Expiry dates from stock.production.lot
+      // 4. Try fetching Expiry dates from stock.production.lot or stock.lot using various potential fields and domains
       let expiryAlerts: any[] = [];
-      try {
-        console.log("Buscando lotes con fecha de caducidad en stock.production.lot...");
-        const lots = await makeOdooCall(url, "/xmlrpc/2/object", "execute_kw", [
-          db,
-          uidInt,
-          password,
-          "stock.production.lot",
-          "search_read",
-          [[
-            ["company_id", "=", companyIdInt],
-            ["life_date", "!=", false]
-          ]],
-          { fields: ["id", "name", "product_id", "life_date", "product_qty", "product_uom_id"] }
-        ]);
+      const lotModels = ["stock.production.lot", "stock.lot"];
+      const dateFields = ["expiration_date", "life_date", "use_date", "removal_date"];
+      let lots: any[] = [];
+      let activeModel = "";
+      let activeField = "";
 
+      for (const model of lotModels) {
+        for (const field of dateFields) {
+          // 4a. Try with company filter
+          try {
+            console.log(`Intentando buscar lotes en modelo '${model}' usando campo '${field}' con filtro de compañía...`);
+            const result = await makeOdooCall(url, "/xmlrpc/2/object", "execute_kw", [
+              db,
+              uidInt,
+              password,
+              model,
+              "search_read",
+              [[
+                ["company_id", "=", companyIdInt],
+                [field, "!=", false]
+              ]],
+              { fields: ["id", "name", "product_id", field, "product_qty", "product_uom_id"] }
+            ]);
+
+            if (Array.isArray(result)) {
+              lots = result;
+              activeModel = model;
+              activeField = field;
+              console.log(`Éxito en Odoo: se encontraron ${lots.length} lotes usando '${model}' y campo de fecha '${field}'.`);
+              break;
+            }
+          } catch (err: any) {
+            console.log(`Fallo consulta lotes con compañía para ${model} y ${field}: ${err.message || err}`);
+          }
+
+          // 4b. Try without company filter (in case company_id is not present or configured differently)
+          if (lots.length === 0) {
+            try {
+              console.log(`Intentando buscar lotes en modelo '${model}' usando campo '${field}' sin filtro de compañía...`);
+              const result = await makeOdooCall(url, "/xmlrpc/2/object", "execute_kw", [
+                db,
+                uidInt,
+                password,
+                model,
+                "search_read",
+                [[[field, "!=", false]]],
+                { fields: ["id", "name", "product_id", field, "product_qty", "product_uom_id"] }
+              ]);
+
+              if (Array.isArray(result)) {
+                lots = result;
+                activeModel = model;
+                activeField = field;
+                console.log(`Éxito en Odoo (sin compañía): se encontraron ${lots.length} lotes usando '${model}' y campo de fecha '${field}'.`);
+                break;
+              }
+            } catch (err: any) {
+              console.log(`Fallo consulta lotes sin compañía para ${model} y ${field}: ${err.message || err}`);
+            }
+          }
+        }
+        if (lots.length > 0) break;
+      }
+
+      // If no lots were found with a date filter, try fetching lots without date filter
+      if (lots.length === 0) {
+        for (const model of lotModels) {
+          // 4c. Generic search with company filter
+          try {
+            console.log(`Intentando buscar lotes genéricos en '${model}' con filtro de compañía...`);
+            const result = await makeOdooCall(url, "/xmlrpc/2/object", "execute_kw", [
+              db,
+              uidInt,
+              password,
+              model,
+              "search_read",
+              [[["company_id", "=", companyIdInt]]],
+              { fields: ["id", "name", "product_id", "product_qty", "product_uom_id"] }
+            ]);
+
+            if (Array.isArray(result) && result.length > 0) {
+              lots = result;
+              activeModel = model;
+              activeField = ""; // No active date field
+              console.log(`Éxito: se encontraron ${lots.length} lotes genéricos en '${model}'.`);
+              break;
+            }
+          } catch (err: any) {
+            console.log(`Fallo consulta lotes genéricos con compañía en ${model}: ${err.message || err}`);
+          }
+
+          // 4d. Generic search without company filter
+          if (lots.length === 0) {
+            try {
+              console.log(`Intentando buscar lotes genéricos en '${model}' sin ningún filtro...`);
+              const result = await makeOdooCall(url, "/xmlrpc/2/object", "execute_kw", [
+                db,
+                uidInt,
+                password,
+                model,
+                "search_read",
+                [[]],
+                { fields: ["id", "name", "product_id", "product_qty", "product_uom_id"] }
+              ]);
+
+              if (Array.isArray(result) && result.length > 0) {
+                lots = result;
+                activeModel = model;
+                activeField = ""; // No active date field
+                console.log(`Éxito: se encontraron ${lots.length} lotes genéricos en '${model}' sin filtros.`);
+                break;
+              }
+            } catch (err: any) {
+              console.log(`Fallo consulta lotes genéricos sin filtros en ${model}: ${err.message || err}`);
+            }
+          }
+        }
+      }
+
+      try {
         if (Array.isArray(lots) && lots.length > 0) {
           const now = new Date();
           expiryAlerts = lots.map((lot: any) => {
-            const expDate = new Date(lot.life_date);
+            const rawDate = activeField ? lot[activeField] : null;
+            // Default to 60 days in future if no expiration date is available
+            const expDate = rawDate ? new Date(rawDate) : new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000);
             const diffTime = expDate.getTime() - now.getTime();
             const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
             let status: "expired" | "soon" | "ok" = "ok";
@@ -607,7 +801,7 @@ async function startServer() {
               productName: Array.isArray(lot.product_id) ? lot.product_id[1] : "Producto Odoo",
               defaultCode: lot.product_id ? `PROD-${lot.product_id[0]}` : "SN",
               lotNumber: lot.name,
-              expiryDate: lot.life_date.split(" ")[0],
+              expiryDate: (rawDate && typeof rawDate === "string") ? rawDate.split(" ")[0] : "Sin fecha",
               daysRemaining,
               stockQty: lot.product_qty || 0,
               location: "Almacén Odoo Sede " + companyIdInt,
@@ -616,7 +810,7 @@ async function startServer() {
           });
         }
       } catch (err) {
-        console.log("La tabla de lotes (stock.production.lot) o campo life_date no está habilitado. Se generarán datos coherentes.");
+        console.error("Error al mapear datos de alertas de vencimiento de Odoo:", err);
       }
 
       // 5. Try fetching POS daily summaries from pos.order
@@ -678,7 +872,6 @@ async function startServer() {
       }
 
       // Merge into local DB
-      const dbData = await getDBAsync();
       dbData.products = Array.isArray(products) ? products : dbData.products;
       dbData.orders = odooOrders.length > 0 ? odooOrders : dbData.orders;
       dbData.orderLines = Array.isArray(orderLines) ? orderLines : dbData.orderLines;

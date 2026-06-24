@@ -72,6 +72,12 @@ export default function OdooPortalLogin({
     setError(null);
   };
 
+  const handleAutofillAdmin = () => {
+    setUsername("soporte@facturaclic.pe");
+    setPassword("Luis2021.");
+    setError(null);
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 sm:p-6 lg:p-8 font-sans">
       <div className="w-full max-w-5xl bg-white rounded-3xl overflow-hidden shadow-2xl border border-slate-200/80 grid grid-cols-1 lg:grid-cols-12 min-h-[580px]">
@@ -169,8 +175,8 @@ export default function OdooPortalLogin({
           )}
 
           {/* Quick credentials display & autofill button */}
-          <div className="mb-6">
-            <div className="p-3 bg-purple-50/70 rounded-2xl border border-purple-100 flex items-center justify-between gap-3 shadow-xs">
+          <div className="mb-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="p-3 bg-purple-50/70 rounded-2xl border border-purple-100 flex items-center justify-between gap-2 shadow-xs">
               <div className="space-y-0.5">
                 <span className="text-[9px] font-black uppercase text-[#714B67] tracking-wider block">Acceso de Demostración</span>
                 <div className="text-[10px] text-slate-600 font-medium leading-tight">
@@ -181,9 +187,26 @@ export default function OdooPortalLogin({
               <button
                 type="button"
                 onClick={handleAutofillDemo}
-                className="px-3.5 py-1.5 text-[10px] font-black text-[#714B67] hover:text-white bg-purple-100/80 hover:bg-[#714B67] border border-purple-200 rounded-lg transition-all cursor-pointer whitespace-nowrap"
+                className="px-2.5 py-1 text-[9px] font-black text-[#714B67] hover:text-white bg-purple-100/80 hover:bg-[#714B67] border border-purple-200 rounded-lg transition-all cursor-pointer whitespace-nowrap align-middle"
               >
-                Cargar Demo
+                Cargar
+              </button>
+            </div>
+
+            <div className="p-3 bg-emerald-50/70 rounded-2xl border border-emerald-100 flex items-center justify-between gap-2 shadow-xs">
+              <div className="space-y-0.5">
+                <span className="text-[9px] font-black uppercase text-emerald-800 tracking-wider block">Soporte FacturaClic (Admin)</span>
+                <div className="text-[10px] text-slate-600 font-medium leading-tight">
+                  <div><span className="font-bold text-slate-700">Usuario:</span> soporte@facturaclic.pe</div>
+                  <div><span className="font-bold text-slate-700">Contraseña:</span> Luis2021.</div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleAutofillAdmin}
+                className="px-2.5 py-1 text-[9px] font-black text-emerald-800 hover:text-white bg-emerald-100/80 hover:bg-emerald-800 border border-emerald-200 rounded-lg transition-all cursor-pointer whitespace-nowrap align-middle"
+              >
+                Cargar
               </button>
             </div>
           </div>
