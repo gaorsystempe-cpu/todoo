@@ -525,21 +525,32 @@ async function startServer() {
 
       console.log(`Autenticación exitosa. UID recibido: ${uid}`);
 
-      // 2. Fetch companies to allow target selection
-      const companies = await makeOdooCall(url, "/xmlrpc/2/object", "execute_kw", [
-        db,
-        uid,
-        password,
-        "res.company",
-        "search_read",
-        [[]], // domain empty for all companies
-        { fields: ["id", "name", "currency_id"] }
-      ]);
+      // 2. Fetch companies to allow target selection with robust fallback
+      let companies: any[] = [];
+      try {
+        const result = await makeOdooCall(url, "/xmlrpc/2/object", "execute_kw", [
+          db,
+          uid,
+          password,
+          "res.company",
+          "search_read",
+          [[]], // domain empty for all companies
+          { fields: ["id", "name"] } // Avoid currency_id as it can fail due to permissions
+        ]);
+        if (Array.isArray(result)) {
+          companies = result;
+        } else {
+          companies = [{ id: 1, name: "Compañía Principal (Odoo)" }];
+        }
+      } catch (compError: any) {
+        console.warn("[Odoo] Falló la consulta de compañías. Usando compañía principal virtual:", compError.message || compError);
+        companies = [{ id: 1, name: "Compañía Principal (Auto-detectada)" }];
+      }
 
       return res.json({
         success: true,
         uid,
-        companies: Array.isArray(companies) ? companies : []
+        companies
       });
 
     } catch (error: any) {

@@ -196,6 +196,159 @@ function saveLocalDB(db: any) {
   localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(db));
 }
 
+// --- CLIENT-SIDE ODOO XML-RPC CLIENT FOR STATIC / FALLBACK ENVIRONMENTS ---
+function valueToXml(val: any): string {
+  if (val === null || val === undefined) {
+    return "<value><nil/></value>";
+  }
+  if (typeof val === "boolean") {
+    return `<value><boolean>${val ? 1 : 0}</boolean></value>`;
+  }
+  if (typeof val === "number") {
+    if (Number.isInteger(val)) {
+      return `<value><int>${val}</int></value>`;
+    } else {
+      return `<value><double>${val}</double></value>`;
+    }
+  }
+  if (typeof val === "string") {
+    const escaped = val
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&apos;");
+    return `<value><string>${escaped}</string></value>`;
+  }
+  if (Array.isArray(val)) {
+    const items = val.map(valueToXml).join("");
+    return `<value><array><data>${items}</data></array></value>`;
+  }
+  if (typeof val === "object") {
+    const members = Object.entries(val)
+      .map(([k, v]) => `<member><name>${k}</name>${valueToXml(v)}</member>`)
+      .join("");
+    return `<value><struct>${members}</struct></value>`;
+  }
+  return `<value><string>${String(val)}</string></value>`;
+}
+
+function buildXmlRpcPayload(methodName: string, params: any[]): string {
+  const paramsXml = params.map(p => `<param>${valueToXml(p)}</param>`).join("");
+  return `<?xml version="1.0"?><methodCall><methodName>${methodName}</methodName><params>${paramsXml}</params></methodCall>`;
+}
+
+function parseXmlRpcValue(node: Node): any {
+  const valueNode = (node.nodeType === 1 && (node as Element).tagName === "value" 
+    ? node 
+    : (node as Element).querySelector("value")) as Element | null;
+    
+  if (!valueNode) return null;
+  
+  const child = valueNode.firstElementChild;
+  if (!child) {
+    return valueNode.textContent || "";
+  }
+  
+  const type = child.tagName;
+  if (type === "string" || type === "name") {
+    return child.textContent || "";
+  }
+  if (type === "int" || type === "i4") {
+    return parseInt(child.textContent || "0", 10);
+  }
+  if (type === "double") {
+    return parseFloat(child.textContent || "0");
+  }
+  if (type === "boolean") {
+    return child.textContent?.trim() === "1" || child.textContent?.trim().toLowerCase() === "true";
+  }
+  if (type === "nil") {
+    return null;
+  }
+  if (type === "array") {
+    const dataNode = child.querySelector("data");
+    if (!dataNode) return [];
+    const values: any[] = [];
+    for (let i = 0; i < dataNode.children.length; i++) {
+      values.push(parseXmlRpcValue(dataNode.children[i]));
+    }
+    return values;
+  }
+  if (type === "struct") {
+    const obj: any = {};
+    const members = child.querySelectorAll("member");
+    members.forEach(member => {
+      const nameNode = member.querySelector("name");
+      const valNode = member.querySelector("value");
+      if (nameNode && valNode) {
+        const name = nameNode.textContent?.trim() || "";
+        obj[name] = parseXmlRpcValue(valNode);
+      }
+    });
+    return obj;
+  }
+  return child.textContent || "";
+}
+
+function parseXmlRpcResponse(xmlString: string): any {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(xmlString, "text/xml");
+  
+  const fault = doc.querySelector("fault");
+  if (fault) {
+    const faultValue = parseXmlRpcValue(fault);
+    const faultCode = faultValue?.faultCode || "Unknown";
+    const faultString = faultValue?.faultString || xmlString;
+    throw new Error(`XML-RPC fault [${faultCode}]: ${faultString}`);
+  }
+  
+  const param = doc.querySelector("param");
+  if (!param) return null;
+  return parseXmlRpcValue(param);
+}
+
+async function executeClientSideOdooCall(
+  odooUrl: string,
+  path: string,
+  method: string,
+  params: any[]
+): Promise<any> {
+  const payload = buildXmlRpcPayload(method, params);
+  let baseUrl = odooUrl.trim();
+  if (baseUrl.endsWith("/")) {
+    baseUrl = baseUrl.substring(0, baseUrl.length - 1);
+  }
+  const fullUrl = `${baseUrl}${path}`;
+
+  const makePost = async (targetUrl: string) => {
+    const response = await originalFetch(targetUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/xml" },
+      body: payload
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP error ${response.status}`);
+    }
+    const text = await response.text();
+    return parseXmlRpcResponse(text);
+  };
+
+  try {
+    return await makePost(fullUrl);
+  } catch (directErr: any) {
+    console.warn("[API Mock] Direct client-side XML-RPC call failed, trying via CORS proxy...", directErr.message || directErr);
+    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(fullUrl)}`;
+    try {
+      return await makePost(proxyUrl);
+    } catch (proxyErr: any) {
+      console.error("[API Mock] CORS proxy failed:", proxyErr.message || proxyErr);
+      throw new Error(`Error de conexión con Odoo (CORS/Red): ${proxyErr.message || proxyErr}`);
+    }
+  }
+}
+// -------------------------------------------------------------------------
+
 // Handler for all simulated API requests
 async function handleMockRequest(urlStr: string, init?: RequestInit): Promise<Response> {
   const url = new URL(urlStr, window.location.origin);
@@ -350,7 +503,65 @@ async function handleMockRequest(urlStr: string, init?: RequestInit): Promise<Re
 
   // 8. ODOO AUTHENTICATE
   if (pathname === "/api/odoo/authenticate" && method === "POST") {
-    // Return a dummy successful auth with typical companies to let them play with demo mode
+    const { url, db: odooDb, username, password } = getBody();
+
+    // If they specified a custom real Odoo URL (not a dummy string/mock/empty)
+    if (url && url !== "demo" && !url.includes("example.com") && url.trim().startsWith("http")) {
+      try {
+        console.log(`[API Mock Client-Side] Authenticating with Odoo: ${url}, DB: ${odooDb}, User: ${username}`);
+        const uid = await executeClientSideOdooCall(url, "/xmlrpc/2/common", "authenticate", [
+          odooDb,
+          username,
+          password,
+          {}
+        ]);
+
+        if (!uid) {
+          return jsonResponse({
+            success: false,
+            message: "Credenciales inválidas. Por favor verifique el usuario, contraseña o base de datos."
+          });
+        }
+
+        console.log(`[API Mock Client-Side] Authentication success, UID: ${uid}`);
+
+        // Fetch companies with robust fallback
+        let companies: any[] = [];
+        try {
+          const result = await executeClientSideOdooCall(url, "/xmlrpc/2/object", "execute_kw", [
+            odooDb,
+            uid,
+            password,
+            "res.company",
+            "search_read",
+            [[]],
+            { fields: ["id", "name"] } // Avoid currency_id
+          ]);
+          if (Array.isArray(result)) {
+            companies = result;
+          } else {
+            companies = [{ id: 1, name: "Compañía Principal (Odoo)" }];
+          }
+        } catch (cErr: any) {
+          console.warn("[API Mock Client-Side] Failed to list companies, using virtual main company.", cErr.message || cErr);
+          companies = [{ id: 1, name: "Compañía Principal (Auto-detectada)" }];
+        }
+
+        return jsonResponse({
+          success: true,
+          uid,
+          companies
+        });
+      } catch (err: any) {
+        console.error("[API Mock Client-Side] Authentication error:", err);
+        return jsonResponse({
+          success: false,
+          message: err.message || "Error de conexión con Odoo."
+        });
+      }
+    }
+
+    // Default Demo Mode Auth
     return jsonResponse({
       success: true,
       uid: 2,
@@ -363,6 +574,164 @@ async function handleMockRequest(urlStr: string, init?: RequestInit): Promise<Re
 
   // 9. ODOO FETCH DATA (returns products, orders, orderlines etc)
   if (pathname === "/api/odoo/fetch-data" && method === "POST") {
+    const { url, db: odooDb, username, password, uid, companyId } = getBody();
+
+    if (url && url !== "demo" && !url.includes("example.com") && url.trim().startsWith("http")) {
+      try {
+        const companyIdInt = parseInt(companyId, 10);
+        const uidInt = parseInt(uid, 10);
+
+        console.log(`[API Mock Client-Side] Fetching Odoo data for company ${companyIdInt}...`);
+
+        // 1. Products
+        let products: any[] = [];
+        try {
+          const result = await executeClientSideOdooCall(url, "/xmlrpc/2/object", "execute_kw", [
+            odooDb,
+            uidInt,
+            password,
+            "product.product",
+            "search_read",
+            [[["sale_ok", "=", true]]],
+            { fields: ["id", "display_name", "default_code", "list_price"] }
+          ]);
+          if (Array.isArray(result)) products = result;
+        } catch (err) {
+          console.warn("[API Mock Client-Side] Failed to fetch products, using current local db ones:", err);
+          products = db.products;
+        }
+
+        // 2. Orders
+        let orders: any[] = [];
+        try {
+          const result = await executeClientSideOdooCall(url, "/xmlrpc/2/object", "execute_kw", [
+            odooDb,
+            uidInt,
+            password,
+            "sale.order",
+            "search_read",
+            [[
+              ["company_id", "=", companyIdInt],
+              ["state", "in", ["sale", "done"]]
+            ]],
+            { fields: ["id", "name", "date_order", "user_id", "amount_total"] }
+          ]);
+          if (Array.isArray(result)) orders = result;
+        } catch (err) {
+          console.warn("[API Mock Client-Side] Failed to fetch orders, using local db ones:", err);
+          orders = db.orders;
+        }
+
+        // 3. Order lines
+        let orderLines: any[] = [];
+        if (orders.length > 0) {
+          const orderIds = orders.map((o: any) => o.id);
+          try {
+            const result = await executeClientSideOdooCall(url, "/xmlrpc/2/object", "execute_kw", [
+              odooDb,
+              uidInt,
+              password,
+              "sale.order.line",
+              "search_read",
+              [[["order_id", "in", orderIds]]],
+              { fields: ["id", "order_id", "product_id", "product_uom_qty", "price_unit", "price_subtotal"] }
+            ]);
+            if (Array.isArray(result)) orderLines = result;
+          } catch (err) {
+            console.warn("[API Mock Client-Side] Failed to fetch order lines:", err);
+            orderLines = db.orderLines;
+          }
+        } else {
+          orderLines = db.orderLines;
+        }
+
+        // 4. Expiry / Lots
+        let expiryAlerts: any[] = [];
+        let lots: any[] = [];
+        let activeModel = "";
+        let activeField = "";
+        const lotModels = ["stock.production.lot", "stock.lot"];
+        const dateFields = ["expiration_date", "life_date", "use_date", "removal_date"];
+
+        for (const model of lotModels) {
+          for (const field of dateFields) {
+            try {
+              const result = await executeClientSideOdooCall(url, "/xmlrpc/2/object", "execute_kw", [
+                odooDb,
+                uidInt,
+                password,
+                model,
+                "search_read",
+                [[
+                  ["company_id", "=", companyIdInt],
+                  [field, "!=", false]
+                ]],
+                { fields: ["id", "name", "product_id", field, "product_qty", "product_uom_id"] }
+              ]);
+              if (Array.isArray(result) && result.length > 0) {
+                lots = result;
+                activeModel = model;
+                activeField = field;
+                break;
+              }
+            } catch (e) {}
+          }
+          if (lots.length > 0) break;
+        }
+
+        if (lots.length > 0) {
+          const now = new Date();
+          expiryAlerts = lots.map((lot: any) => {
+            const rawDate = activeField ? lot[activeField] : null;
+            const expDate = rawDate ? new Date(rawDate) : new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000);
+            const diffTime = expDate.getTime() - now.getTime();
+            const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            let status: "expired" | "soon" | "ok" = "ok";
+            if (daysRemaining <= 0) {
+              status = "expired";
+            } else if (daysRemaining <= 30) {
+              status = "soon";
+            }
+            return {
+              id: lot.id,
+              productName: Array.isArray(lot.product_id) ? lot.product_id[1] : "Producto Odoo",
+              defaultCode: lot.product_id ? `PROD-${lot.product_id[0]}` : "SN",
+              lotNumber: lot.name,
+              expiryDate: (rawDate && typeof rawDate === "string") ? rawDate.split(" ")[0] : "Sin fecha",
+              daysRemaining,
+              stockQty: lot.product_qty || 0,
+              location: "Almacén Odoo Sede " + companyIdInt,
+              status
+            };
+          });
+        }
+
+        // Save back to client's simulated DB
+        db.products = products;
+        db.orders = orders;
+        db.orderLines = orderLines;
+        if (expiryAlerts.length > 0) db.expiryAlerts = expiryAlerts;
+        saveLocalDB(db);
+
+        return jsonResponse({
+          success: true,
+          products,
+          orders,
+          orderLines,
+          expiryAlerts: db.expiryAlerts,
+          posReports: db.posReports,
+          posSessions: db.posSessions,
+          posTransactions: db.posTransactions
+        });
+      } catch (err: any) {
+        console.error("[API Mock Client-Side] Error fetching data:", err);
+        return jsonResponse({
+          success: false,
+          message: err.message || "Error al descargar datos de Odoo."
+        });
+      }
+    }
+
     return jsonResponse({
       success: true,
       products: db.products,
