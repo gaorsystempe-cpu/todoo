@@ -793,15 +793,41 @@ const customFetch = async (input: RequestInfo | URL, init?: RequestInit): Promis
   
   if (url.startsWith("/api/") || url.includes("/api/")) {
     const apiPath = url.substring(url.indexOf("/api/"));
+    
+    // Check if this is a connection request for a real Odoo server
+    let isRealOdooRequest = false;
+    try {
+      if (init?.body) {
+        const body = JSON.parse(init.body as string);
+        if (body.url && body.url !== "demo" && !body.url.includes("example.com") && body.url.trim().startsWith("http")) {
+          isRealOdooRequest = true;
+        }
+      }
+    } catch (e) {}
+
     try {
       const response = await originalFetch(input, init);
       // If we receive a gateway error, status 404 (common in static deploys) or status 502/504
       if (response.status === 404 || response.status === 502 || response.status === 504) {
+        if (isRealOdooRequest) {
+          const statusText = response.status === 404 ? "no encontrado (404)" : `error de pasarela (${response.status})`;
+          return new Response(JSON.stringify({
+            success: false,
+            message: `El servidor backend reportó un ${statusText}. Por favor espere un momento a que el servicio se inicie completamente.`
+          }), { status: 200, headers: { "Content-Type": "application/json" } });
+        }
         return await handleMockRequest(apiPath, init);
       }
       return response;
-    } catch (err) {
+    } catch (err: any) {
+      console.warn(`[API Mock] originalFetch a ${url} falló:`, err.message || err);
       // TypeError: Failed to fetch (server is down or CORS block or no backend)
+      if (isRealOdooRequest) {
+        return new Response(JSON.stringify({
+          success: false,
+          message: `No se pudo conectar al servidor backend. Verifique que el servicio esté activo y reintente en unos segundos.`
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
       return await handleMockRequest(apiPath, init);
     }
   }

@@ -456,6 +456,12 @@ async function startServer() {
   // Middleware to parse JSON bodies
   app.use(express.json({ limit: "50mb" }));
 
+  // Logger middleware
+  app.use((req, res, next) => {
+    console.log(`[Odoo Server Incoming Request] ${req.method} ${req.url}`);
+    next();
+  });
+
   // Helper function to make XML-RPC calls to Odoo
   function makeOdooCall(
     url: string,
@@ -477,8 +483,32 @@ async function startServer() {
         const portString = parsedUrl.port;
         const port = portString ? parseInt(portString, 10) : (isHttps ? 443 : 80);
 
+        // Prepend subdirectory path if configured in URL
+        let finalPath = path;
+        let urlPathname = parsedUrl.pathname;
+        if (urlPathname && urlPathname !== "/") {
+          if (urlPathname.endsWith("/")) {
+            urlPathname = urlPathname.slice(0, -1);
+          }
+          if (urlPathname.startsWith("/")) {
+            finalPath = urlPathname + path;
+          } else {
+            finalPath = "/" + urlPathname + path;
+          }
+        }
+
         const createClient = isHttps ? xmlrpc.createSecureClient : xmlrpc.createClient;
-        const client = createClient({ host, port, path });
+        const client = createClient({ 
+          host, 
+          port, 
+          path: finalPath,
+          rejectUnauthorized: false
+        } as any);
+
+        // Prevent Node process from crashing due to unhandled socket error event on xmlrpc client
+        client.on("error", (err: any) => {
+          console.error(`[Odoo XML-RPC Client Socket Error] method: ${method}:`, err.message || err);
+        });
 
         client.methodCall(method, params, (err: any, value: any) => {
           if (err) {
