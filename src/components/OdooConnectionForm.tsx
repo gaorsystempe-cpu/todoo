@@ -36,20 +36,47 @@ export default function OdooConnectionForm({
     setLoading(true);
     setError(null);
 
+    // Format URL automatically to have https:// if protocol is missing
+    let targetUrl = formValues.url.trim();
+    if (targetUrl && targetUrl !== "demo" && !targetUrl.includes("example.com") && !/^https?:\/\//i.test(targetUrl)) {
+      targetUrl = "https://" + targetUrl;
+    }
+
+    const payload = {
+      ...formValues,
+      url: targetUrl
+    };
+
     try {
-      const response = await fetch("/api/odoo/authenticate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formValues)
-      });
+      let data: any = null;
+      let response: Response;
+      const maxAttempts = 3;
 
-      const data = await response.json();
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        response = await fetch("/api/odoo/authenticate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
 
-      if (data.success) {
+        data = await response.json();
+
+        // If the backend was booting up or warming up, retry after a short delay
+        if (!data.success && data.message && (data.message.includes("espere un momento") || data.message.includes("inicie completamente"))) {
+          if (attempt < maxAttempts) {
+            console.log(`[Odoo Connection] Servidor backend en preparación. Reintentando en 2s (Intento ${attempt}/${maxAttempts})...`);
+            await new Promise(r => setTimeout(r, 2000));
+            continue;
+          }
+        }
+        break;
+      }
+
+      if (data && data.success) {
         setCompanies(data.companies);
         onChangeConnection({
           ...connection,
-          url: formValues.url,
+          url: targetUrl,
           db: formValues.db,
           username: formValues.username,
           password: formValues.password,
@@ -59,10 +86,10 @@ export default function OdooConnectionForm({
         });
         if (data.companies.length > 0) {
           // Auto select first company if none is set
-          handleSelectCompany(data.companies[0].id, data.companies[0].name, data.uid, formValues.password);
+          handleSelectCompany(data.companies[0].id, data.companies[0].name, data.uid, formValues.password, targetUrl);
         }
       } else {
-        setError(data.message || "Error al conectar con Odoo. Revise las credenciales.");
+        setError(data?.message || "Error al conectar con Odoo. Revise las credenciales.");
       }
     } catch (err: any) {
       console.error(err);
@@ -72,32 +99,49 @@ export default function OdooConnectionForm({
     }
   };
 
-  const handleSelectCompany = async (companyId: number, companyName: string, activeUid?: number, activePassword?: string) => {
+  const handleSelectCompany = async (companyId: number, companyName: string, activeUid?: number, activePassword?: string, activeUrl?: string) => {
     setLoading(true);
     setError(null);
     const pwd = activePassword || connection.password || "";
     const uid = activeUid || connection.uid;
+    const targetUrl = activeUrl || connection.url || formValues.url;
 
     try {
-      const response = await fetch("/api/odoo/fetch-data", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          url: connection.url || formValues.url,
-          db: connection.db || formValues.db,
-          username: connection.username || formValues.username,
-          password: pwd,
-          uid: uid,
-          companyId: companyId
-        })
-      });
+      let data: any = null;
+      let response: Response;
+      const maxAttempts = 3;
 
-      const data = await response.json();
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        response = await fetch("/api/odoo/fetch-data", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            url: targetUrl,
+            db: connection.db || formValues.db,
+            username: connection.username || formValues.username,
+            password: pwd,
+            uid: uid,
+            companyId: companyId
+          })
+        });
 
-      if (data.success) {
+        data = await response.json();
+
+        // If the backend was booting up or warming up, retry after a short delay
+        if (!data.success && data.message && (data.message.includes("espere un momento") || data.message.includes("inicie completamente"))) {
+          if (attempt < maxAttempts) {
+            console.log(`[Odoo Fetch] Servidor backend en preparación. Reintentando en 2s (Intento ${attempt}/${maxAttempts})...`);
+            await new Promise(r => setTimeout(r, 2000));
+            continue;
+          }
+        }
+        break;
+      }
+
+      if (data && data.success) {
         onChangeConnection({
           ...connection,
-          url: connection.url || formValues.url,
+          url: targetUrl,
           db: connection.db || formValues.db,
           username: connection.username || formValues.username,
           password: pwd,
@@ -109,7 +153,7 @@ export default function OdooConnectionForm({
         });
         onDataLoaded(data.products, data.orders, data.orderLines, data.expiryAlerts, data.posReports);
       } else {
-        setError(data.message || `No se pudieron cargar datos para la empresa ${companyName}.`);
+        setError(data?.message || `No se pudieron cargar datos para la empresa ${companyName}.`);
       }
     } catch (err) {
       console.error(err);

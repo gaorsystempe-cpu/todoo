@@ -471,11 +471,16 @@ async function startServer() {
   ): Promise<any> {
     return new Promise((resolve, reject) => {
       try {
+        let formattedUrl = url.trim();
+        if (!/^https?:\/\//i.test(formattedUrl)) {
+          formattedUrl = "https://" + formattedUrl;
+        }
+
         let parsedUrl: URL;
         try {
-          parsedUrl = new URL(url);
+          parsedUrl = new URL(formattedUrl);
         } catch (e) {
-          return reject(new Error("Formato de URL inválido. Debe empezar con http:// o https://"));
+          return reject(new Error("Formato de URL inválido. Ingrese una dirección de Odoo válida (ej. odoo.miempresa.com o https://odoo.miempresa.com)."));
         }
 
         const isHttps = parsedUrl.protocol === "https:";
