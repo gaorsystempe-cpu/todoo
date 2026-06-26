@@ -1,6 +1,7 @@
 import express from "express";
 import path from "path";
-import xmlrpc from "xmlrpc";
+import * as xmlrpcModule from "xmlrpc";
+const xmlrpc: any = (xmlrpcModule as any).default || xmlrpcModule;
 import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import { createClient } from "@supabase/supabase-js";
@@ -483,49 +484,39 @@ async function startServer() {
   ): Promise<any> {
     return new Promise((resolve, reject) => {
       try {
-        let formattedUrl = url.trim();
-        if (!/^https?:\/\//i.test(formattedUrl)) {
-          formattedUrl = "https://" + formattedUrl;
+        let baseUrl = url.trim();
+        if (!/^https?:\/\//i.test(baseUrl)) {
+          baseUrl = "https://" + baseUrl;
+        }
+        if (baseUrl.endsWith("/")) {
+          baseUrl = baseUrl.slice(0, -1);
         }
 
-        let parsedUrl: URL;
-        try {
-          parsedUrl = new URL(formattedUrl);
-        } catch (e) {
-          return reject(new Error("Formato de URL inválido. Ingrese una dirección de Odoo válida (ej. odoo.miempresa.com o https://odoo.miempresa.com)."));
+        let cleanPath = path;
+        if (!cleanPath.startsWith("/")) {
+          cleanPath = "/" + cleanPath;
         }
 
-        const isHttps = parsedUrl.protocol === "https:";
-        const host = parsedUrl.hostname;
-        const portString = parsedUrl.port;
-        const port = portString ? parseInt(portString, 10) : (isHttps ? 443 : 80);
+        const fullTargetUrl = `${baseUrl}${cleanPath}`;
+        const isHttps = fullTargetUrl.startsWith("https://");
 
-        // Prepend subdirectory path if configured in URL
-        let finalPath = path;
-        let urlPathname = parsedUrl.pathname;
-        if (urlPathname && urlPathname !== "/") {
-          if (urlPathname.endsWith("/")) {
-            urlPathname = urlPathname.slice(0, -1);
-          }
-          if (urlPathname.startsWith("/")) {
-            finalPath = urlPathname + path;
-          } else {
-            finalPath = "/" + urlPathname + path;
-          }
-        }
+        console.log(`[Odoo Server XML-RPC] Creando cliente para: ${fullTargetUrl}`);
 
         const createClient = isHttps ? xmlrpc.createSecureClient : xmlrpc.createClient;
-        const client = createClient({ 
-          host, 
-          port, 
-          path: finalPath,
+        if (typeof createClient !== "function") {
+          throw new Error(`xmlrpc.createSecureClient/createClient no es una función. Tipo de xmlrpc detectado: ${typeof xmlrpc}.`);
+        }
+
+        const client = createClient({
+          url: fullTargetUrl,
           rejectUnauthorized: false
         } as any);
 
-        // Prevent Node process from crashing due to unhandled socket error event on xmlrpc client
-        client.on("error", (err: any) => {
-          console.error(`[Odoo XML-RPC Client Socket Error] method: ${method}:`, err.message || err);
-        });
+        console.log("Tipo de cliente xmlrpc en backend:", typeof client, Object.keys(client || {}));
+
+        if (!client || typeof client.methodCall !== "function") {
+          throw new Error("El cliente XML-RPC no se pudo inicializar correctamente o no contiene la función methodCall.");
+        }
 
         client.methodCall(method, params, (err: any, value: any) => {
           if (err) {
@@ -637,6 +628,30 @@ async function startServer() {
 
       const dbData = await getDBAsync();
 
+      // 0. Fetch Odoo users (res.users)
+      let odooUsers: any[] = [];
+      try {
+        console.log("Consultando usuarios de Odoo (res.users)...");
+        const result = await makeOdooCall(url, "/xmlrpc/2/object", "execute_kw", [
+          db,
+          uidInt,
+          password,
+          "res.users",
+          "search_read",
+          [[["company_ids", "in", [companyIdInt]]]],
+          { 
+            fields: ["id", "name", "login", "partner_id"],
+            context: { allowed_company_ids: [companyIdInt] }
+          }
+        ]);
+        if (Array.isArray(result)) {
+          odooUsers = result;
+          console.log(`Se encontraron ${odooUsers.length} usuarios de Odoo para la compañía ID: ${companyIdInt}.`);
+        }
+      } catch (err: any) {
+        console.warn("[Odoo] Fallo al consultar usuarios (res.users). Usando respaldo vacío:", err.message || err);
+      }
+
       // 1. Fetch sellable products (to set commission rules in front-end)
       // product.product is preferred in Odoo for actual sellable SKU variants
       let products: any[] = [];
@@ -648,8 +663,14 @@ async function startServer() {
           password,
           "product.product",
           "search_read",
-          [[["sale_ok", "=", true]]],
-          { fields: ["id", "display_name", "default_code", "list_price"] }
+          [[
+            ["sale_ok", "=", true],
+            ["company_id", "in", [false, companyIdInt]]
+          ]],
+          { 
+            fields: ["id", "display_name", "default_code", "list_price"],
+            context: { allowed_company_ids: [companyIdInt] }
+          }
         ]);
         if (Array.isArray(result)) {
           products = result;
@@ -673,10 +694,13 @@ async function startServer() {
           "sale.order",
           "search_read",
           [[
-            ["company_id", "=", companyIdInt],
+            ["company_id", "in", [companyIdInt]],
             ["state", "in", ["sale", "done"]]
           ]],
-          { fields: ["id", "name", "date_order", "user_id", "amount_total"] }
+          { 
+            fields: ["id", "name", "date_order", "user_id", "amount_total"],
+            context: { allowed_company_ids: [companyIdInt] }
+          }
         ]);
         if (Array.isArray(result)) {
           orders = result;
@@ -705,7 +729,10 @@ async function startServer() {
             "sale.order.line",
             "search_read",
             [[["order_id", "in", orderIds]]],
-            { fields: ["id", "order_id", "product_id", "product_uom_qty", "price_unit", "price_subtotal"] }
+            { 
+              fields: ["id", "order_id", "product_id", "product_uom_qty", "price_unit", "price_subtotal"],
+              context: { allowed_company_ids: [companyIdInt] }
+            }
           ]);
           if (Array.isArray(result)) {
             orderLines = result;
@@ -741,10 +768,13 @@ async function startServer() {
               model,
               "search_read",
               [[
-                ["company_id", "=", companyIdInt],
+                ["company_id", "in", [companyIdInt]],
                 [field, "!=", false]
               ]],
-              { fields: ["id", "name", "product_id", field, "product_qty", "product_uom_id"] }
+              { 
+                fields: ["id", "name", "product_id", field, "product_qty", "product_uom_id"],
+                context: { allowed_company_ids: [companyIdInt] }
+              }
             ]);
 
             if (Array.isArray(result)) {
@@ -799,8 +829,11 @@ async function startServer() {
               password,
               model,
               "search_read",
-              [[["company_id", "=", companyIdInt]]],
-              { fields: ["id", "name", "product_id", "product_qty", "product_uom_id"] }
+              [[["company_id", "in", [companyIdInt]]]],
+              { 
+                fields: ["id", "name", "product_id", "product_qty", "product_uom_id"],
+                context: { allowed_company_ids: [companyIdInt] }
+              }
             ]);
 
             if (Array.isArray(result) && result.length > 0) {
@@ -885,10 +918,13 @@ async function startServer() {
           "pos.order",
           "search_read",
           [[
-            ["company_id", "=", companyIdInt],
+            ["company_id", "in", [companyIdInt]],
             ["state", "in", ["paid", "done", "invoiced"]]
           ]],
-          { fields: ["id", "name", "date_order", "amount_total", "lines", "invoice_id"] }
+          { 
+            fields: ["id", "name", "date_order", "amount_total", "lines", "invoice_id"],
+            context: { allowed_company_ids: [companyIdInt] }
+          }
         ]);
 
         if (Array.isArray(posOrders) && posOrders.length > 0) {
@@ -1003,7 +1039,8 @@ async function startServer() {
         expiryAlerts: dbData.expiryAlerts,
         posReports: dbData.posReports,
         posSessions: dbData.posSessions,
-        posTransactions: dbData.posTransactions
+        posTransactions: dbData.posTransactions,
+        users: odooUsers
       });
 
     } catch (error: any) {

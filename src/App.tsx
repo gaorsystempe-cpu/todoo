@@ -38,6 +38,7 @@ export default function App() {
   const [posReports, setPosReports] = useState<PosDailyReport[]>(MOCK_POS_DAILY_REPORTS);
   const [posSessions, setPosSessions] = useState<PosSession[]>(MOCK_POS_SESSIONS);
   const [posTransactions, setPosTransactions] = useState<PosTransactionDetail[]>(MOCK_POS_TRANSACTIONS);
+  const [odooUsers, setOdooUsers] = useState<any[]>([]);
 
   // Commission rules setup
   const [rules, setRules] = useState<CommissionRule[]>(INITIAL_MOCK_RULES);
@@ -100,7 +101,8 @@ export default function App() {
     loadedExpiry?: ExpiryAlert[],
     loadedPos?: PosDailyReport[],
     loadedSessions?: PosSession[],
-    loadedTxs?: PosTransactionDetail[]
+    loadedTxs?: PosTransactionDetail[],
+    loadedUsers?: any[]
   ) => {
     setProducts(loadedProducts);
     setOrders(loadedOrders);
@@ -124,6 +126,11 @@ export default function App() {
       setPosTransactions(loadedTxs);
     } else {
       setPosTransactions(MOCK_POS_TRANSACTIONS);
+    }
+    if (loadedUsers) {
+      setOdooUsers(loadedUsers);
+    } else {
+      setOdooUsers([]);
     }
   };
 
@@ -193,7 +200,16 @@ export default function App() {
 
       const data = await response.json();
       if (data.success) {
-        handleRealOdooDataLoaded(data.products, data.orders, data.orderLines, data.expiryAlerts, data.posReports);
+        handleRealOdooDataLoaded(
+          data.products,
+          data.orders,
+          data.orderLines,
+          data.expiryAlerts,
+          data.posReports,
+          data.posSessions,
+          data.posTransactions,
+          data.users
+        );
       }
     } catch (err) {
       console.error("Failed to sync automatically", err);
@@ -553,6 +569,7 @@ export default function App() {
                 <PortalUserManagement
                   orders={orders}
                   currentUsername={connection.username}
+                  odooUsers={odooUsers}
                 />
               </motion.div>
             )}

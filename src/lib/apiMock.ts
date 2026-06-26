@@ -312,9 +312,10 @@ async function executeClientSideOdooCall(
   odooUrl: string,
   path: string,
   method: string,
-  params: any[]
+  params: any[],
+  companyId?: number
 ): Promise<any> {
-  console.log(`[API Mock Client-Side Proxy] Enviando XML-RPC a través del proxy propio /api/odoo-proxy...`);
+  console.log(`[API Mock Client-Side Proxy] Enviando XML-RPC a través del proxy propio /api/odoo-proxy (Company: ${companyId || "Ninguna"})...`);
   try {
     const response = await originalFetch("/api/odoo-proxy", {
       method: "POST",
@@ -325,7 +326,8 @@ async function executeClientSideOdooCall(
         url: odooUrl,
         path: path,
         method: method,
-        params: params
+        params: params,
+        companyId: companyId
       })
     });
 
@@ -576,6 +578,26 @@ async function handleMockRequest(urlStr: string, init?: RequestInit): Promise<Re
 
         console.log(`[API Mock Client-Side] Fetching Odoo data for company ${companyIdInt}...`);
 
+        // 0. Users
+        let odooUsers: any[] = [];
+        try {
+          const result = await executeClientSideOdooCall(url, "/xmlrpc/2/object", "execute_kw", [
+            odooDb,
+            uidInt,
+            password,
+            "res.users",
+            "search_read",
+            [[["company_ids", "in", [companyIdInt]]]],
+            { 
+              fields: ["id", "name", "login", "partner_id"],
+              context: { allowed_company_ids: [companyIdInt] }
+            }
+          ], companyIdInt);
+          if (Array.isArray(result)) odooUsers = result;
+        } catch (err) {
+          console.warn("[API Mock Client-Side] Failed to fetch res.users:", err);
+        }
+
         // 1. Products
         let products: any[] = [];
         try {
@@ -585,9 +607,15 @@ async function handleMockRequest(urlStr: string, init?: RequestInit): Promise<Re
             password,
             "product.product",
             "search_read",
-            [[["sale_ok", "=", true]]],
-            { fields: ["id", "display_name", "default_code", "list_price"] }
-          ]);
+            [[
+              ["sale_ok", "=", true],
+              ["company_id", "in", [false, companyIdInt]]
+            ]],
+            { 
+              fields: ["id", "display_name", "default_code", "list_price"],
+              context: { allowed_company_ids: [companyIdInt] }
+            }
+          ], companyIdInt);
           if (Array.isArray(result)) products = result;
         } catch (err) {
           console.warn("[API Mock Client-Side] Failed to fetch products, using current local db ones:", err);
@@ -604,11 +632,14 @@ async function handleMockRequest(urlStr: string, init?: RequestInit): Promise<Re
             "sale.order",
             "search_read",
             [[
-              ["company_id", "=", companyIdInt],
+              ["company_id", "in", [companyIdInt]],
               ["state", "in", ["sale", "done"]]
             ]],
-            { fields: ["id", "name", "date_order", "user_id", "amount_total"] }
-          ]);
+            { 
+              fields: ["id", "name", "date_order", "user_id", "amount_total"],
+              context: { allowed_company_ids: [companyIdInt] }
+            }
+          ], companyIdInt);
           if (Array.isArray(result)) orders = result;
         } catch (err) {
           console.warn("[API Mock Client-Side] Failed to fetch orders, using local db ones:", err);
@@ -627,8 +658,11 @@ async function handleMockRequest(urlStr: string, init?: RequestInit): Promise<Re
               "sale.order.line",
               "search_read",
               [[["order_id", "in", orderIds]]],
-              { fields: ["id", "order_id", "product_id", "product_uom_qty", "price_unit", "price_subtotal"] }
-            ]);
+              { 
+                fields: ["id", "order_id", "product_id", "product_uom_qty", "price_unit", "price_subtotal"],
+                context: { allowed_company_ids: [companyIdInt] }
+              }
+            ], companyIdInt);
             if (Array.isArray(result)) orderLines = result;
           } catch (err) {
             console.warn("[API Mock Client-Side] Failed to fetch order lines:", err);
@@ -656,11 +690,14 @@ async function handleMockRequest(urlStr: string, init?: RequestInit): Promise<Re
                 model,
                 "search_read",
                 [[
-                  ["company_id", "=", companyIdInt],
+                  ["company_id", "in", [companyIdInt]],
                   [field, "!=", false]
                 ]],
-                { fields: ["id", "name", "product_id", field, "product_qty", "product_uom_id"] }
-              ]);
+                { 
+                  fields: ["id", "name", "product_id", field, "product_qty", "product_uom_id"],
+                  context: { allowed_company_ids: [companyIdInt] }
+                }
+              ], companyIdInt);
               if (Array.isArray(result) && result.length > 0) {
                 lots = result;
                 activeModel = model;
@@ -714,7 +751,8 @@ async function handleMockRequest(urlStr: string, init?: RequestInit): Promise<Re
           expiryAlerts: db.expiryAlerts,
           posReports: db.posReports,
           posSessions: db.posSessions,
-          posTransactions: db.posTransactions
+          posTransactions: db.posTransactions,
+          users: odooUsers
         });
       } catch (err: any) {
         console.error("[API Mock Client-Side] Error fetching data:", err);
@@ -733,7 +771,8 @@ async function handleMockRequest(urlStr: string, init?: RequestInit): Promise<Re
       expiryAlerts: db.expiryAlerts,
       posReports: db.posReports,
       posSessions: db.posSessions,
-      posTransactions: db.posTransactions
+      posTransactions: db.posTransactions,
+      users: []
     });
   }
 

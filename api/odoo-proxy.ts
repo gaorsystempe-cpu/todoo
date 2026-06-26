@@ -28,6 +28,56 @@ async function getRequestBody(req: any): Promise<any> {
   });
 }
 
+// Helper to rewrite low-level execute_kw parameters with company-level filtering and context rules
+function sanitizeExecuteKwParams(model: string, method: string, args: any[], kwargs: any, companyId: any): { args: any[], kwargs: any } {
+  const companyIdInt = parseInt(companyId, 10);
+  if (isNaN(companyIdInt)) return { args: args || [], kwargs: kwargs || {} };
+
+  let newArgs = Array.isArray(args) ? [...args] : [[]];
+  let newKwargs = kwargs && typeof kwargs === "object" ? { ...kwargs } : {};
+
+  // Inject allowed_company_ids context
+  if (!newKwargs.context) {
+    newKwargs.context = {};
+  } else {
+    newKwargs.context = { ...newKwargs.context };
+  }
+  newKwargs.context.allowed_company_ids = [companyIdInt];
+
+  // Apply filters only for search or search_read methods
+  if (method === "search" || method === "search_read" || method === "search_count") {
+    let domain = newArgs[0];
+    if (!Array.isArray(domain)) {
+      domain = [];
+    } else {
+      domain = [...domain];
+    }
+
+    if (model === "res.users") {
+      // Check if company_ids filter is already present
+      const hasCompanyFilter = domain.some((cond: any) => cond && cond[0] === "company_ids");
+      if (!hasCompanyFilter) {
+        domain.push(["company_ids", "in", [companyIdInt]]);
+      }
+    } else if (model === "product.product" || model === "product.template") {
+      // Check if company_id filter is already present
+      const hasCompanyFilter = domain.some((cond: any) => cond && cond[0] === "company_id");
+      if (!hasCompanyFilter) {
+        domain.push(["company_id", "in", [false, companyIdInt]]);
+      }
+    } else if (model === "sale.order" || model === "pos.order" || model === "stock.production.lot" || model === "stock.lot") {
+      // Check if company_id filter is already present
+      const hasCompanyFilter = domain.some((cond: any) => cond && cond[0] === "company_id");
+      if (!hasCompanyFilter) {
+        domain.push(["company_id", "in", [companyIdInt]]);
+      }
+    }
+    newArgs[0] = domain;
+  }
+
+  return { args: newArgs, kwargs: newKwargs };
+}
+
 // Promisified XML-RPC call helper
 function makeXmlRpcCall(url: string, path: string, method: string, params: any[]): Promise<any> {
   return new Promise((resolve, reject) => {
@@ -111,8 +161,19 @@ export default async function handler(req: any, res: any) {
     // A. Handle direct low-level XML-RPC routing
     if (path && method && params) {
       console.log(`[Odoo Proxy XML-RPC] Ruta directa - Path: ${path}, Method: ${method}`);
+      let finalParams = [...params];
+      if (path === "/xmlrpc/2/object" && method === "execute_kw" && finalParams.length >= 7 && body.companyId) {
+        const odooModel = finalParams[3];
+        const odooMethod = finalParams[4];
+        const odooArgs = finalParams[5];
+        const odooKwargs = finalParams[6];
+        const { args: sanitizedArgs, kwargs: sanitizedKwargs } = sanitizeExecuteKwParams(odooModel, odooMethod, odooArgs, odooKwargs, body.companyId);
+        finalParams[5] = sanitizedArgs;
+        finalParams[6] = sanitizedKwargs;
+        console.log(`[Odoo Proxy XML-RPC] Sanitized execute_kw for model: ${odooModel}, method: ${odooMethod}`);
+      }
       const result = await Promise.race([
-        makeXmlRpcCall(url, path, method, params),
+        makeXmlRpcCall(url, path, method, finalParams),
         new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout en la conexión con Odoo (30s).")), 30000))
       ]);
       return res.status(200).json({ success: true, result });
@@ -203,6 +264,15 @@ export default async function handler(req: any, res: any) {
 
       console.log(`[Odoo Proxy Execute] Modelo: ${model}, Método: ${method}, UID: ${resolvedUid}`);
 
+      let finalArgs = args || [];
+      let finalKwargs = kwargs || {};
+      if (body.companyId) {
+        const { args: sanitizedArgs, kwargs: sanitizedKwargs } = sanitizeExecuteKwParams(model, method, finalArgs, finalKwargs, body.companyId);
+        finalArgs = sanitizedArgs;
+        finalKwargs = sanitizedKwargs;
+        console.log(`[Odoo Proxy Execute] Sanitized high-level execute_kw for model: ${model}, method: ${method}`);
+      }
+
       const result = await Promise.race([
         makeXmlRpcCall(url, "/xmlrpc/2/object", "execute_kw", [
           db,
@@ -210,8 +280,8 @@ export default async function handler(req: any, res: any) {
           password,
           model,
           method,
-          args || [],
-          kwargs || {}
+          finalArgs,
+          finalKwargs
         ]),
         new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout en la ejecución de la consulta (30s).")), 30000))
       ]);

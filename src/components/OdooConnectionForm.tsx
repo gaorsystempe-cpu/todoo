@@ -6,7 +6,16 @@ import { motion } from "motion/react";
 interface OdooConnectionFormProps {
   connection: OdooConnection;
   onChangeConnection: (conn: OdooConnection) => void;
-  onDataLoaded: (products: any[], orders: any[], orderLines: any[], expiryAlerts?: any[], posReports?: any[]) => void;
+  onDataLoaded: (
+    products: any[],
+    orders: any[],
+    orderLines: any[],
+    expiryAlerts?: any[],
+    posReports?: any[],
+    posSessions?: any[],
+    posTransactions?: any[],
+    users?: any[]
+  ) => void;
 }
 
 export default function OdooConnectionForm({
@@ -151,7 +160,16 @@ export default function OdooConnectionForm({
           isConnected: true,
           isDemoMode: false
         });
-        onDataLoaded(data.products, data.orders, data.orderLines, data.expiryAlerts, data.posReports);
+        onDataLoaded(
+          data.products,
+          data.orders,
+          data.orderLines,
+          data.expiryAlerts,
+          data.posReports,
+          data.posSessions,
+          data.posTransactions,
+          data.users
+        );
       } else {
         setError(data?.message || `No se pudieron cargar datos para la empresa ${companyName}.`);
       }
