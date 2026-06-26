@@ -1,5 +1,7 @@
 import { IncomingMessage, ServerResponse } from "http";
-import xmlrpc from "xmlrpc";
+import * as xmlrpcModule from "xmlrpc";
+
+const xmlrpc: any = (xmlrpcModule as any).default || xmlrpcModule;
 
 // Helper function to parse JSON body from incoming Node.js request
 async function getRequestBody(req: any): Promise<any> {
@@ -30,48 +32,39 @@ async function getRequestBody(req: any): Promise<any> {
 function makeXmlRpcCall(url: string, path: string, method: string, params: any[]): Promise<any> {
   return new Promise((resolve, reject) => {
     try {
-      let formattedUrl = url.trim();
-      if (!/^https?:\/\//i.test(formattedUrl)) {
-        formattedUrl = "https://" + formattedUrl;
+      let baseUrl = url.trim();
+      if (!/^https?:\/\//i.test(baseUrl)) {
+        baseUrl = "https://" + baseUrl;
+      }
+      if (baseUrl.endsWith("/")) {
+        baseUrl = baseUrl.slice(0, -1);
       }
 
-      let parsedUrl: URL;
-      try {
-        parsedUrl = new URL(formattedUrl);
-      } catch (e) {
-        return reject(new Error("Formato de URL inválido. Ingrese una dirección de Odoo válida (ej: odoo.miempresa.com o https://odoo.miempresa.com)."));
+      let cleanPath = path;
+      if (!cleanPath.startsWith("/")) {
+        cleanPath = "/" + cleanPath;
       }
 
-      const isHttps = parsedUrl.protocol === "https:";
-      const host = parsedUrl.hostname;
-      const portString = parsedUrl.port;
-      const port = portString ? parseInt(portString, 10) : (isHttps ? 443 : 80);
+      const fullTargetUrl = `${baseUrl}${cleanPath}`;
+      const isHttps = fullTargetUrl.startsWith("https://");
 
-      // Extract subdirectory path if configured in URL
-      let finalPath = path;
-      let urlPathname = parsedUrl.pathname;
-      if (urlPathname && urlPathname !== "/") {
-        if (urlPathname.endsWith("/")) {
-          urlPathname = urlPathname.slice(0, -1);
-        }
-        if (urlPathname.startsWith("/")) {
-          finalPath = urlPathname + path;
-        } else {
-          finalPath = "/" + urlPathname + path;
-        }
-      }
+      console.log(`[Odoo Proxy XML-RPC] Creando cliente para: ${fullTargetUrl}`);
 
       const createClient = isHttps ? xmlrpc.createSecureClient : xmlrpc.createClient;
-      const client = createClient({ 
-        host, 
-        port, 
-        path: finalPath,
+      if (typeof createClient !== "function") {
+        throw new Error(`xmlrpc.createSecureClient/createClient no es una función. Tipo de xmlrpc detectado: ${typeof xmlrpc}.`);
+      }
+
+      const client = createClient({
+        url: fullTargetUrl,
         rejectUnauthorized: false
       } as any);
 
-      client.on("error", (err: any) => {
-        console.error(`[Odoo Proxy XML-RPC Socket Error] ${method}:`, err.message || err);
-      });
+      console.log("Tipo de cliente xmlrpc:", typeof client, Object.keys(client || {}));
+
+      if (!client || typeof client.methodCall !== "function") {
+        throw new Error("El cliente XML-RPC no se pudo inicializar correctamente o no contiene la función methodCall.");
+      }
 
       client.methodCall(method, params, (err: any, value: any) => {
         if (err) {
