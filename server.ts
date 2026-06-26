@@ -628,12 +628,14 @@ async function startServer() {
 
       const dbData = await getDBAsync();
 
-      // 0. Fetch Odoo users (res.users) with robust company_ids filter (Plural, Odoo 14 spec)
+      // 0. Fetch Odoo users (res.users) with robust nested fallbacks (using company_ids, company_id or unfiltered query)
       let odooUsers: any[] = [];
+      console.log("Consultando usuarios de Odoo (res.users)...");
+      
+      // Intento 1: Con filtro de company_ids (Relación many2many estándar de Odoo)
       try {
-        console.log("Consultando usuarios de Odoo (res.users)...");
-        // Try with company_ids plural filter as requested by user
-        let result = await makeOdooCall(url, "/xmlrpc/2/object", "execute_kw", [
+        console.log("Intento 1: Consultando usuarios con 'company_ids' in [ID]...");
+        const result = await makeOdooCall(url, "/xmlrpc/2/object", "execute_kw", [
           db,
           uidInt,
           password,
@@ -645,26 +647,62 @@ async function startServer() {
             context: { allowed_company_ids: [companyIdInt] }
           }
         ]);
+        if (Array.isArray(result) && result.length > 0) {
+          odooUsers = result;
+          console.log(`Éxito Intento 1: Se encontraron ${odooUsers.length} usuarios con 'company_ids'.`);
+        }
+      } catch (err: any) {
+        console.log(`Fallo Intento 1 (company_ids): ${err.message || err}`);
+      }
 
-        if (!Array.isArray(result) || result.length === 0) {
-          console.log("Intento de usuarios por company_ids vacío. Probando sin filtro de compañía (todos)...");
-          result = await makeOdooCall(url, "/xmlrpc/2/object", "execute_kw", [
+      // Intento 2: Si no se encontraron usuarios, probar con filtro 'company_id' (Relación many2one)
+      if (odooUsers.length === 0) {
+        try {
+          console.log("Intento 2: Consultando usuarios con 'company_id' = ID...");
+          const result = await makeOdooCall(url, "/xmlrpc/2/object", "execute_kw", [
+            db,
+            uidInt,
+            password,
+            "res.users",
+            "search_read",
+            [[["company_id", "=", companyIdInt]]],
+            { 
+              fields: ["id", "name", "login", "partner_id"],
+              context: { allowed_company_ids: [companyIdInt] }
+            }
+          ]);
+          if (Array.isArray(result) && result.length > 0) {
+            odooUsers = result;
+            console.log(`Éxito Intento 2: Se encontraron ${odooUsers.length} usuarios con 'company_id'.`);
+          }
+        } catch (err: any) {
+          console.log(`Fallo Intento 2 (company_id): ${err.message || err}`);
+        }
+      }
+
+      // Intento 3: Si sigue vacío, consultar todos los usuarios sin filtro de compañía
+      if (odooUsers.length === 0) {
+        try {
+          console.log("Intento 3: Consultando todos los usuarios de Odoo sin filtro...");
+          const result = await makeOdooCall(url, "/xmlrpc/2/object", "execute_kw", [
             db,
             uidInt,
             password,
             "res.users",
             "search_read",
             [[]],
-            { fields: ["id", "name", "login", "partner_id"] }
+            { 
+              fields: ["id", "name", "login", "partner_id"],
+              limit: 80
+            }
           ]);
+          if (Array.isArray(result) && result.length > 0) {
+            odooUsers = result;
+            console.log(`Éxito Intento 3: Se encontraron ${odooUsers.length} usuarios sin filtros.`);
+          }
+        } catch (err: any) {
+          console.warn("[Odoo] Fallo total al consultar usuarios (res.users):", err.message || err);
         }
-
-        if (Array.isArray(result)) {
-          odooUsers = result;
-          console.log(`Se encontraron ${odooUsers.length} usuarios de Odoo.`);
-        }
-      } catch (err: any) {
-        console.warn("[Odoo] Fallo al consultar usuarios (res.users):", err.message || err);
       }
 
       // 1. Fetch sellable products (to set commission rules in front-end)

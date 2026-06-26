@@ -578,8 +578,11 @@ async function handleMockRequest(urlStr: string, init?: RequestInit): Promise<Re
 
         console.log(`[API Mock Client-Side] Fetching Odoo data for company ${companyIdInt}...`);
 
-        // 0. Users
+        // 0. Users with robust nested fallbacks
         let odooUsers: any[] = [];
+        console.log("[API Mock Client-Side] Consultando usuarios de Odoo (res.users)...");
+        
+        // Intento 1: Con filtro de company_ids
         try {
           const result = await executeClientSideOdooCall(url, "/xmlrpc/2/object", "execute_kw", [
             odooDb,
@@ -593,9 +596,60 @@ async function handleMockRequest(urlStr: string, init?: RequestInit): Promise<Re
               context: { allowed_company_ids: [companyIdInt] }
             }
           ], companyIdInt);
-          if (Array.isArray(result)) odooUsers = result;
+          if (Array.isArray(result) && result.length > 0) {
+            odooUsers = result;
+            console.log(`[API Mock Client-Side] Éxito Intento 1: ${odooUsers.length} usuarios.`);
+          }
         } catch (err) {
-          console.warn("[API Mock Client-Side] Failed to fetch res.users:", err);
+          console.log(`[API Mock Client-Side] Fallo Intento 1 (company_ids):`, err);
+        }
+
+        // Intento 2: Con filtro company_id
+        if (odooUsers.length === 0) {
+          try {
+            const result = await executeClientSideOdooCall(url, "/xmlrpc/2/object", "execute_kw", [
+              odooDb,
+              uidInt,
+              password,
+              "res.users",
+              "search_read",
+              [[["company_id", "=", companyIdInt]]],
+              { 
+                fields: ["id", "name", "login", "partner_id"],
+                context: { allowed_company_ids: [companyIdInt] }
+              }
+            ], companyIdInt);
+            if (Array.isArray(result) && result.length > 0) {
+              odooUsers = result;
+              console.log(`[API Mock Client-Side] Éxito Intento 2: ${odooUsers.length} usuarios.`);
+            }
+          } catch (err) {
+            console.log(`[API Mock Client-Side] Fallo Intento 2 (company_id):`, err);
+          }
+        }
+
+        // Intento 3: Sin filtros
+        if (odooUsers.length === 0) {
+          try {
+            const result = await executeClientSideOdooCall(url, "/xmlrpc/2/object", "execute_kw", [
+              odooDb,
+              uidInt,
+              password,
+              "res.users",
+              "search_read",
+              [[]],
+              { 
+                fields: ["id", "name", "login", "partner_id"],
+                limit: 80
+              }
+            ], companyIdInt);
+            if (Array.isArray(result) && result.length > 0) {
+              odooUsers = result;
+              console.log(`[API Mock Client-Side] Éxito Intento 3: ${odooUsers.length} usuarios sin filtros.`);
+            }
+          } catch (err) {
+            console.warn("[API Mock Client-Side] Fallo total al consultar usuarios:", err);
+          }
         }
 
         // 1. Products
@@ -910,6 +964,7 @@ async function handleMockRequest(urlStr: string, init?: RequestInit): Promise<Re
         db.products = products;
         db.orders = orders;
         db.orderLines = orderLines;
+        db.odooUsers = odooUsers;
         if (expiryAlerts.length > 0) db.expiryAlerts = expiryAlerts;
         
         if (posSessions.length > 0) {
