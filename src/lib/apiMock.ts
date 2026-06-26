@@ -314,71 +314,31 @@ async function executeClientSideOdooCall(
   method: string,
   params: any[]
 ): Promise<any> {
-  const payload = buildXmlRpcPayload(method, params);
-  let baseUrl = odooUrl.trim();
-  if (baseUrl.endsWith("/")) {
-    baseUrl = baseUrl.substring(0, baseUrl.length - 1);
-  }
-  const fullUrl = `${baseUrl}${path}`;
+  console.log(`[API Mock Client-Side Proxy] Enviando XML-RPC a través del proxy propio /api/odoo-proxy...`);
+  try {
+    const response = await originalFetch("/api/odoo-proxy", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        url: odooUrl,
+        path: path,
+        method: method,
+        params: params
+      })
+    });
 
-  // List of public CORS proxies that support POST requests and forward request bodies
-  const proxies = [
-    {
-      name: "Directo (Sin Proxy)",
-      buildUrl: (url: string) => url,
-    },
-    {
-      name: "Corsproxy.io",
-      buildUrl: (url: string) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
-    },
-    {
-      name: "Codetabs Proxy",
-      buildUrl: (url: string) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
-    },
-    {
-      name: "Thingproxy",
-      buildUrl: (url: string) => `https://thingproxy.freeboard.io/fetch/${url}`,
-    },
-    {
-      name: "AllOrigins (Línea de Respaldo)",
-      buildUrl: (url: string) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+    const data = await response.json();
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || `Error del proxy de Odoo (HTTP ${response.status})`);
     }
-  ];
 
-  let lastError = null;
-
-  for (const proxy of proxies) {
-    try {
-      const proxyTargetUrl = proxy.buildUrl(fullUrl);
-      console.log(`[API Mock Client-Side] Probando llamada XML-RPC vía ${proxy.name}...`);
-      
-      const response = await originalFetch(proxyTargetUrl, {
-        method: "POST",
-        headers: { 
-          "Content-Type": "text/xml",
-          "Accept": "text/xml, */*"
-        },
-        body: payload
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error ${response.status} (${response.statusText || "Error"})`);
-      }
-
-      const text = await response.text();
-      // Validar si es una respuesta XML-RPC válida o por lo menos contiene XML básico
-      if (!text || (!text.includes("<methodResponse>") && !text.includes("<fault>") && !text.includes("<?xml"))) {
-        throw new Error("La respuesta del proxy no contiene una estructura XML válida.");
-      }
-
-      return parseXmlRpcResponse(text);
-    } catch (err: any) {
-      console.warn(`[API Mock Client-Side] Intento vía ${proxy.name} fallido:`, err.message || err);
-      lastError = err;
-    }
+    return data.result;
+  } catch (err: any) {
+    console.error(`[API Mock Client-Side Proxy] Error en llamada proxy:`, err.message || err);
+    throw new Error(`Error de conexión con Odoo (CORS/Red): ${err.message || err}`);
   }
-
-  throw new Error(`Error de conexión con Odoo (CORS/Red): ${lastError?.message || "Todos los proxies fallaron"}`);
 }
 // -------------------------------------------------------------------------
 
@@ -803,7 +763,8 @@ const customFetch = async (input: RequestInfo | URL, init?: RequestInit): Promis
     const apiPath = url.substring(url.indexOf("/api/"));
     
     // If we are on Vercel or other static hosts, direct /api/ requests to the Cloud Run backend
-    if (isStaticDeploy) {
+    // BUT exclude /api/odoo-proxy so it runs locally as a native Vercel Serverless Function!
+    if (isStaticDeploy && !apiPath.startsWith("/api/odoo-proxy")) {
       const targetUrl = `${CLOUD_RUN_BACKEND}${apiPath}`;
       console.log(`[API Mock] Redireccionando llamada API de Vercel al backend en Cloud Run: ${targetUrl}`);
       try {

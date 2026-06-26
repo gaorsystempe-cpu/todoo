@@ -5,6 +5,7 @@ import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import { createClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
+import odooProxyHandler from "./api/odoo-proxy";
 
 dotenv.config();
 
@@ -539,6 +540,9 @@ async function startServer() {
       }
     });
   }
+
+  // API Route: Generic/High-level Odoo XML-RPC Proxy
+  app.post("/api/odoo-proxy", odooProxyHandler);
 
   // API Route: Test Odoo Connection & List Available Companies
   app.post("/api/odoo/authenticate", async (req, res) => {

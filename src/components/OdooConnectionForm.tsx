@@ -93,7 +93,7 @@ export default function OdooConnectionForm({
       }
     } catch (err: any) {
       console.error(err);
-      setError("No se pudo comunicar con el servidor Express o el servidor Odoo está inaccesible.");
+      setError(err.message || "No se pudo comunicar con el servidor Express o el servidor Odoo está inaccesible.");
     } finally {
       setLoading(false);
     }
@@ -155,9 +155,9 @@ export default function OdooConnectionForm({
       } else {
         setError(data?.message || `No se pudieron cargar datos para la empresa ${companyName}.`);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setError("Error al descargar productos y pedidos desde Odoo.");
+      setError(err.message || "Error al descargar productos y pedidos desde Odoo.");
     } finally {
       setLoading(false);
     }
