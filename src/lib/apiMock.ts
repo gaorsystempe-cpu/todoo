@@ -787,13 +787,36 @@ async function handleMockRequest(urlStr: string, init?: RequestInit): Promise<Re
 }
 
 // Install interceptor globally if there is no server or if fetch fails
+const CLOUD_RUN_BACKEND = "https://ais-pre-laewhbuqbsts4vdvsssrk5-70882886393.us-east1.run.app";
+
 const originalFetch = window.fetch;
 const customFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-  const url = typeof input === "string" ? input : (input instanceof URL ? input.href : input instanceof Request ? input.url : "");
+  let url = typeof input === "string" ? input : (input instanceof URL ? input.href : input instanceof Request ? input.url : "");
   
+  const isStaticDeploy = !window.location.hostname.includes("localhost") && 
+                         !window.location.hostname.includes("127.0.0.1") && 
+                         !window.location.hostname.includes("run.app") &&
+                         !window.location.hostname.includes("google.com") &&
+                         !window.location.hostname.includes("aistudio");
+
   if (url.startsWith("/api/") || url.includes("/api/")) {
     const apiPath = url.substring(url.indexOf("/api/"));
     
+    // If we are on Vercel or other static hosts, direct /api/ requests to the Cloud Run backend
+    if (isStaticDeploy) {
+      const targetUrl = `${CLOUD_RUN_BACKEND}${apiPath}`;
+      console.log(`[API Mock] Redireccionando llamada API de Vercel al backend en Cloud Run: ${targetUrl}`);
+      try {
+        const response = await originalFetch(targetUrl, init);
+        // If the backend request completed, return the response directly
+        if (response.status !== 404 && response.status !== 502 && response.status !== 504) {
+          return response;
+        }
+      } catch (err: any) {
+        console.warn(`[API Mock] Redirección al backend de Cloud Run falló. Pasando a proxy directo...`, err);
+      }
+    }
+
     // Check if this is a connection request for a real Odoo server
     let isRealOdooRequest = false;
     try {

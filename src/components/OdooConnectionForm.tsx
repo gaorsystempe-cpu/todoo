@@ -174,6 +174,13 @@ export default function OdooConnectionForm({
     setError(null);
   };
 
+  const isStaticDeploy = typeof window !== "undefined" && 
+                         !window.location.hostname.includes("localhost") && 
+                         !window.location.hostname.includes("127.0.0.1") && 
+                         !window.location.hostname.includes("run.app") &&
+                         !window.location.hostname.includes("google.com") &&
+                         !window.location.hostname.includes("aistudio");
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 15 }}
@@ -210,6 +217,18 @@ export default function OdooConnectionForm({
 
       <div className="p-6 grid grid-cols-1 lg:grid-cols-12 gap-8">
         <form onSubmit={handleConnect} className="lg:col-span-7 space-y-4">
+          {isStaticDeploy && (
+            <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 text-amber-800 text-xs flex gap-3 leading-relaxed mb-2">
+              <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold">Servidor estático (Vercel) detectado</p>
+                <p className="mt-0.5">
+                  Las solicitudes de conexión se redireccionarán automáticamente a través de su servidor seguro de <strong>Google Cloud Run</strong> para evitar el bloqueo de CORS del navegador. Esto le permitirá conectar su servidor real sin inconvenientes.
+                </p>
+              </div>
+            </div>
+          )}
+
           <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 mb-2">
             <h3 className="text-sm font-medium text-slate-700 mb-1">Información de Multicompañía</h3>
             <p className="text-xs text-slate-500 leading-relaxed">
