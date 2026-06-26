@@ -123,6 +123,7 @@ export interface PosSession {
   closedAmount: number; // Con cuánto cerró caja
   totalRevenue: number;
   state: "Abierto" | "Cerrado";
+  config_id?: any;
 }
 
 export interface PosTransactionDetail {

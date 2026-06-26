@@ -788,7 +788,7 @@ async function startServer() {
               ["life_date", "<", fechaHoyISO]
             ]],
             { 
-              fields: ["id", "name", "product_id", "life_date", "product_qty", "product_uom_id"],
+              fields: ["id", "name", "product_id", "life_date", "product_qty", "product_uom_id", "company_id"],
               context: { allowed_company_ids: [companyIdInt] }
             }
           ]);
@@ -806,7 +806,7 @@ async function startServer() {
                 ["life_date", "<", fechaHoyISO]
               ]],
               { 
-                fields: ["id", "name", "product_id", "life_date", "product_qty", "product_uom_id"]
+                fields: ["id", "name", "product_id", "life_date", "product_qty", "product_uom_id", "company_id"]
               }
             ]);
           } catch (e: any) {
@@ -831,7 +831,7 @@ async function startServer() {
               ["life_date", "<=", fechaEn30DiasISO]
             ]],
             { 
-              fields: ["id", "name", "product_id", "life_date", "product_qty", "product_uom_id"],
+              fields: ["id", "name", "product_id", "life_date", "product_qty", "product_uom_id", "company_id"],
               context: { allowed_company_ids: [companyIdInt] }
             }
           ]);
@@ -850,7 +850,7 @@ async function startServer() {
                 ["life_date", "<=", fechaEn30DiasISO]
               ]],
               { 
-                fields: ["id", "name", "product_id", "life_date", "product_qty", "product_uom_id"]
+                fields: ["id", "name", "product_id", "life_date", "product_qty", "product_uom_id", "company_id"]
               }
             ]);
           } catch (e: any) {
@@ -887,7 +887,7 @@ async function startServer() {
                 ["life_date", ">", fechaEn30DiasISO]
               ]],
               { 
-                fields: ["id", "name", "product_id", "life_date", "product_qty", "product_uom_id"],
+                fields: ["id", "name", "product_id", "life_date", "product_qty", "product_uom_id", "company_id"],
                 context: { allowed_company_ids: [companyIdInt] },
                 limit: 20
               }
@@ -909,7 +909,7 @@ async function startServer() {
                 "search_read",
                 [[["life_date", ">", fechaEn30DiasISO]]],
                 { 
-                  fields: ["id", "name", "product_id", "life_date", "product_qty", "product_uom_id"],
+                  fields: ["id", "name", "product_id", "life_date", "product_qty", "product_uom_id", "company_id"],
                   limit: 20
                 }
               ]);
@@ -951,7 +951,7 @@ async function startServer() {
                   [field, "!=", false]
                 ]],
                 { 
-                  fields: ["id", "name", "product_id", field, "product_qty", "product_uom_id"],
+                  fields: ["id", "name", "product_id", field, "product_qty", "product_uom_id", "company_id"],
                   context: { allowed_company_ids: [companyIdInt] }
                 }
               ]);
@@ -984,6 +984,7 @@ async function startServer() {
                 status = "soon";
               }
             }
+            const lotCompanyId = lot.company_id && Array.isArray(lot.company_id) ? lot.company_id[0] : lot.company_id;
             return {
               id: lot.id,
               productName: Array.isArray(lot.product_id) ? lot.product_id[1] : "Producto Odoo",
@@ -993,8 +994,16 @@ async function startServer() {
               daysRemaining,
               stockQty: lot.product_qty || 0,
               location: "Almacén Odoo Sede " + companyIdInt,
-              status
+              status,
+              companyId: lotCompanyId
             };
+          })
+          .filter((alert: any) => {
+            // ONLY keep lots with quantity > 0
+            if (alert.stockQty <= 0) return false;
+            // If company_id is present, strictly filter to match chosen company ID
+            if (alert.companyId && alert.companyId !== companyIdInt) return false;
+            return true;
           });
         }
       } catch (err) {

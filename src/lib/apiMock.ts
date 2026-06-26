@@ -695,7 +695,7 @@ async function handleMockRequest(urlStr: string, init?: RequestInit): Promise<Re
                 ["life_date", "<", fechaHoyISO]
               ]],
               { 
-                fields: ["id", "name", "product_id", "life_date", "product_qty", "product_uom_id"],
+                fields: ["id", "name", "product_id", "life_date", "product_qty", "product_uom_id", "company_id"],
                 context: { allowed_company_ids: [companyIdInt] }
               }
             ], companyIdInt);
@@ -708,7 +708,7 @@ async function handleMockRequest(urlStr: string, init?: RequestInit): Promise<Re
                 "stock.production.lot",
                 "search_read",
                 [[["life_date", "<", fechaHoyISO]]],
-                { fields: ["id", "name", "product_id", "life_date", "product_qty", "product_uom_id"] }
+                { fields: ["id", "name", "product_id", "life_date", "product_qty", "product_uom_id", "company_id"] }
               ], companyIdInt);
             } catch (e) {}
           }
@@ -728,7 +728,7 @@ async function handleMockRequest(urlStr: string, init?: RequestInit): Promise<Re
                 ["life_date", "<=", fechaEn30DiasISO]
               ]],
               { 
-                fields: ["id", "name", "product_id", "life_date", "product_qty", "product_uom_id"],
+                fields: ["id", "name", "product_id", "life_date", "product_qty", "product_uom_id", "company_id"],
                 context: { allowed_company_ids: [companyIdInt] }
               }
             ], companyIdInt);
@@ -744,7 +744,7 @@ async function handleMockRequest(urlStr: string, init?: RequestInit): Promise<Re
                   ["life_date", ">=", fechaHoyISO],
                   ["life_date", "<=", fechaEn30DiasISO]
                 ]],
-                { fields: ["id", "name", "product_id", "life_date", "product_qty", "product_uom_id"] }
+                { fields: ["id", "name", "product_id", "life_date", "product_qty", "product_uom_id", "company_id"] }
               ], companyIdInt);
             } catch (e) {}
           }
@@ -776,7 +776,7 @@ async function handleMockRequest(urlStr: string, init?: RequestInit): Promise<Re
                   ["life_date", ">", fechaEn30DiasISO]
                 ]],
                 { 
-                  fields: ["id", "name", "product_id", "life_date", "product_qty", "product_uom_id"],
+                  fields: ["id", "name", "product_id", "life_date", "product_qty", "product_uom_id", "company_id"],
                   context: { allowed_company_ids: [companyIdInt] },
                   limit: 20
                 }
@@ -813,7 +813,7 @@ async function handleMockRequest(urlStr: string, init?: RequestInit): Promise<Re
                     [field, "!=", false]
                   ]],
                   { 
-                    fields: ["id", "name", "product_id", field, "product_qty", "product_uom_id"],
+                    fields: ["id", "name", "product_id", field, "product_qty", "product_uom_id", "company_id"],
                     context: { allowed_company_ids: [companyIdInt] }
                   }
                 ], companyIdInt);
@@ -843,6 +843,7 @@ async function handleMockRequest(urlStr: string, init?: RequestInit): Promise<Re
                 status = "soon";
               }
             }
+            const lotCompanyId = lot.company_id && Array.isArray(lot.company_id) ? lot.company_id[0] : lot.company_id;
             return {
               id: lot.id,
               productName: Array.isArray(lot.product_id) ? lot.product_id[1] : "Producto Odoo",
@@ -852,8 +853,16 @@ async function handleMockRequest(urlStr: string, init?: RequestInit): Promise<Re
               daysRemaining,
               stockQty: lot.product_qty || 0,
               location: "Almacén Odoo Sede " + companyIdInt,
-              status
+              status,
+              companyId: lotCompanyId
             };
+          })
+          .filter((alert: any) => {
+            // ONLY keep lots with quantity > 0
+            if (alert.stockQty <= 0) return false;
+            // Filter by correct companyId
+            if (alert.companyId && alert.companyId !== companyIdInt) return false;
+            return true;
           });
         }
 
