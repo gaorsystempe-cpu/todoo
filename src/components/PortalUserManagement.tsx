@@ -299,6 +299,27 @@ export default function PortalUserManagement({ orders, currentUsername, odooUser
                       </option>
                     ))}
                   </select>
+                ) : salespersons && salespersons.length > 0 ? (
+                  <select
+                    value={odooPartnerId}
+                    onChange={(e) => {
+                      setOdooPartnerId(e.target.value);
+                      if (e.target.value) {
+                        const matched = salespersons.find((u) => u.id.toString() === e.target.value);
+                        if (matched && !name) {
+                          setName(matched.name);
+                        }
+                      }
+                    }}
+                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white font-medium text-slate-800"
+                  >
+                    <option value="">-- Seleccionar Vendedor Extraído --</option>
+                    {salespersons.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name} (ID: {s.id})
+                      </option>
+                    ))}
+                  </select>
                 ) : (
                   <input
                     type="number"

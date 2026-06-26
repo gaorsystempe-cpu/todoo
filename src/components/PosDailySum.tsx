@@ -48,6 +48,17 @@ export default function PosDailySum({
     reports.length > 0 ? reports[0].date : ""
   );
 
+  // Sync selectedDate when reports list changes (e.g., when changing company)
+  React.useEffect(() => {
+    if (reports.length > 0) {
+      if (!selectedDate || !reports.some((r) => r.date === selectedDate)) {
+        setSelectedDate(reports[0].date);
+      }
+    } else {
+      setSelectedDate("");
+    }
+  }, [reports]);
+
   // States for sessions filtering
   const [sessionSearch, setSessionSearch] = useState<string>("");
   const [sessionStateFilter, setSessionStateFilter] = useState<string>("ALL");

@@ -13,22 +13,50 @@ import { motion, AnimatePresence } from "motion/react";
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
-    return false;
+    const saved = localStorage.getItem("portal_isLoggedIn");
+    return saved === "true";
   });
 
-  const [activeTab, setActiveTab] = useState<"comisiones" | "caducidad" | "ventas_pos" | "configuracion">("comisiones");
+  const [activeTab, setActiveTab] = useState<"comisiones" | "caducidad" | "ventas_pos" | "configuracion">(() => {
+    const saved = localStorage.getItem("portal_activeTab");
+    return (saved as any) || "comisiones";
+  });
+
   const [showAppSwitcher, setShowAppSwitcher] = useState<boolean>(true);
 
   // Connection settings
-  const [connection, setConnection] = useState<OdooConnection>({
-    url: "",
-    db: "",
-    username: "",
-    isConnected: false,
-    isDemoMode: true, // Default to demo simulation on portal
-    companyId: 1,
-    companyName: "Corporación Tecnológica del Perú S.A.C."
+  const [connection, setConnection] = useState<OdooConnection>(() => {
+    const saved = localStorage.getItem("portal_connection");
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        // ignore
+      }
+    }
+    return {
+      url: "",
+      db: "",
+      username: "",
+      isConnected: false,
+      isDemoMode: true, // Default to demo simulation on portal
+      companyId: 1,
+      companyName: "Corporación Tecnológica del Perú S.A.C."
+    };
   });
+
+  // Save changes to localStorage
+  useEffect(() => {
+    localStorage.setItem("portal_isLoggedIn", isLoggedIn ? "true" : "false");
+  }, [isLoggedIn]);
+
+  useEffect(() => {
+    localStorage.setItem("portal_activeTab", activeTab);
+  }, [activeTab]);
+
+  useEffect(() => {
+    localStorage.setItem("portal_connection", JSON.stringify(connection));
+  }, [connection]);
 
   // Main data collections (synced with persistent backend JSON db)
   const [products, setProducts] = useState<OdooProduct[]>(MOCK_PRODUCTS);
@@ -60,6 +88,7 @@ export default function App() {
           if (data.posReports) setPosReports(data.posReports);
           if (data.posSessions) setPosSessions(data.posSessions);
           if (data.posTransactions) setPosTransactions(data.posTransactions);
+          if (data.odooUsers) setOdooUsers(data.odooUsers);
           if (data.rules) setRules(data.rules);
         }
       } catch (err) {

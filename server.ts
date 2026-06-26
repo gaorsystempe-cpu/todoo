@@ -628,11 +628,12 @@ async function startServer() {
 
       const dbData = await getDBAsync();
 
-      // 0. Fetch Odoo users (res.users)
+      // 0. Fetch Odoo users (res.users) with robust fallbacks
       let odooUsers: any[] = [];
       try {
         console.log("Consultando usuarios de Odoo (res.users)...");
-        const result = await makeOdooCall(url, "/xmlrpc/2/object", "execute_kw", [
+        // Try 1: with company_ids filter
+        let result = await makeOdooCall(url, "/xmlrpc/2/object", "execute_kw", [
           db,
           uidInt,
           password,
@@ -644,9 +645,41 @@ async function startServer() {
             context: { allowed_company_ids: [companyIdInt] }
           }
         ]);
+
+        if (!Array.isArray(result) || result.length === 0) {
+          console.log("Intento 1 de usuarios vacío o fallido. Probando Intento 2 con 'company_id'...");
+          // Try 2: with company_id filter
+          result = await makeOdooCall(url, "/xmlrpc/2/object", "execute_kw", [
+            db,
+            uidInt,
+            password,
+            "res.users",
+            "search_read",
+            [[["company_id", "=", companyIdInt]]],
+            { 
+              fields: ["id", "name", "login", "partner_id"],
+              context: { allowed_company_ids: [companyIdInt] }
+            }
+          ]);
+        }
+
+        if (!Array.isArray(result) || result.length === 0) {
+          console.log("Intento 2 de usuarios vacío. Probando Intento 3 sin filtro de compañía...");
+          // Try 3: without company filter (all users)
+          result = await makeOdooCall(url, "/xmlrpc/2/object", "execute_kw", [
+            db,
+            uidInt,
+            password,
+            "res.users",
+            "search_read",
+            [[]],
+            { fields: ["id", "name", "login", "partner_id"] }
+          ]);
+        }
+
         if (Array.isArray(result)) {
           odooUsers = result;
-          console.log(`Se encontraron ${odooUsers.length} usuarios de Odoo para la compañía ID: ${companyIdInt}.`);
+          console.log(`Se encontraron ${odooUsers.length} usuarios de Odoo.`);
         }
       } catch (err: any) {
         console.warn("[Odoo] Fallo al consultar usuarios (res.users). Usando respaldo vacío:", err.message || err);
@@ -968,17 +1001,18 @@ async function startServer() {
         console.log("No se pudo consultar pos.order. Se usarán datos cargados.");
       }
 
-      // Merge into local DB
-      dbData.products = Array.isArray(products) ? products : dbData.products;
-      dbData.orders = odooOrders.length > 0 ? odooOrders : dbData.orders;
-      dbData.orderLines = Array.isArray(orderLines) ? orderLines : dbData.orderLines;
-      dbData.expiryAlerts = expiryAlerts.length > 0 ? expiryAlerts : dbData.expiryAlerts;
-      dbData.posReports = posReports.length > 0 ? posReports : dbData.posReports;
+      // Clear and override local DB with exact fetched company data to prevent "ghost" data leaking from other companies
+      dbData.products = Array.isArray(products) ? products : [];
+      dbData.orders = Array.isArray(odooOrders) ? odooOrders : [];
+      dbData.orderLines = Array.isArray(orderLines) ? orderLines : [];
+      dbData.expiryAlerts = Array.isArray(expiryAlerts) ? expiryAlerts : [];
+      dbData.posReports = Array.isArray(posReports) ? posReports : [];
+      dbData.odooUsers = Array.isArray(odooUsers) ? odooUsers : [];
 
-      // If we got POS reports/orders, we can dynamically mock realistic sessions and transactions mapped to them!
+      // Generate POS sessions and transactions if reports exist, otherwise clear them
+      const sessions: any[] = [];
+      const txs: any[] = [];
       if (posReports.length > 0) {
-        const sessions: any[] = [];
-        const txs: any[] = [];
         let txId = 9001;
         posReports.forEach((rep: any, idx: number) => {
           const dateStr = rep.date;
@@ -1025,9 +1059,9 @@ async function startServer() {
             });
           });
         });
-        dbData.posSessions = sessions;
-        dbData.posTransactions = txs;
       }
+      dbData.posSessions = sessions;
+      dbData.posTransactions = txs;
 
       await saveDBAsync(dbData);
 
@@ -1040,7 +1074,7 @@ async function startServer() {
         posReports: dbData.posReports,
         posSessions: dbData.posSessions,
         posTransactions: dbData.posTransactions,
-        users: odooUsers
+        users: dbData.odooUsers
       });
 
     } catch (error: any) {
@@ -1064,7 +1098,8 @@ async function startServer() {
       expiryAlerts: db.expiryAlerts,
       posReports: db.posReports,
       posSessions: db.posSessions,
-      posTransactions: db.posTransactions
+      posTransactions: db.posTransactions,
+      odooUsers: db.odooUsers || []
     });
   });
 
