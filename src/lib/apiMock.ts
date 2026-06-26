@@ -672,55 +672,176 @@ async function handleMockRequest(urlStr: string, init?: RequestInit): Promise<Re
           orderLines = db.orderLines;
         }
 
-        // 4. Expiry / Lots
+        // 4. Expiry / Lots (Odoo 14 specific, using life_date)
         let expiryAlerts: any[] = [];
         let lots: any[] = [];
-        let activeModel = "";
-        let activeField = "";
-        const lotModels = ["stock.production.lot", "stock.lot"];
-        const dateFields = ["expiration_date", "life_date", "use_date", "removal_date"];
+        const today = new Date();
+        const fechaHoyISO = today.toISOString().split("T")[0];
+        const in30Days = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000);
+        const fechaEn30DiasISO = in30Days.toISOString().split("T")[0];
 
-        for (const model of lotModels) {
-          for (const field of dateFields) {
+        try {
+          console.log(`[API Mock] Consultando lotes vencidos en 'stock.production.lot' con life_date < ${fechaHoyISO}...`);
+          let expiredLots: any[] = [];
+          try {
+            expiredLots = await executeClientSideOdooCall(url, "/xmlrpc/2/object", "execute_kw", [
+              odooDb,
+              uidInt,
+              password,
+              "stock.production.lot",
+              "search_read",
+              [[
+                ["company_id", "in", [companyIdInt]],
+                ["life_date", "<", fechaHoyISO]
+              ]],
+              { 
+                fields: ["id", "name", "product_id", "life_date", "product_qty", "product_uom_id"],
+                context: { allowed_company_ids: [companyIdInt] }
+              }
+            ], companyIdInt);
+          } catch (err: any) {
             try {
-              const result = await executeClientSideOdooCall(url, "/xmlrpc/2/object", "execute_kw", [
+              expiredLots = await executeClientSideOdooCall(url, "/xmlrpc/2/object", "execute_kw", [
                 odooDb,
                 uidInt,
                 password,
-                model,
+                "stock.production.lot",
+                "search_read",
+                [[["life_date", "<", fechaHoyISO]]],
+                { fields: ["id", "name", "product_id", "life_date", "product_qty", "product_uom_id"] }
+              ], companyIdInt);
+            } catch (e) {}
+          }
+
+          console.log(`[API Mock] Consultando lotes por vencer en 'stock.production.lot' entre ${fechaHoyISO} y ${fechaEn30DiasISO}...`);
+          let soonLots: any[] = [];
+          try {
+            soonLots = await executeClientSideOdooCall(url, "/xmlrpc/2/object", "execute_kw", [
+              odooDb,
+              uidInt,
+              password,
+              "stock.production.lot",
+              "search_read",
+              [[
+                ["company_id", "in", [companyIdInt]],
+                ["life_date", ">=", fechaHoyISO],
+                ["life_date", "<=", fechaEn30DiasISO]
+              ]],
+              { 
+                fields: ["id", "name", "product_id", "life_date", "product_qty", "product_uom_id"],
+                context: { allowed_company_ids: [companyIdInt] }
+              }
+            ], companyIdInt);
+          } catch (err: any) {
+            try {
+              soonLots = await executeClientSideOdooCall(url, "/xmlrpc/2/object", "execute_kw", [
+                odooDb,
+                uidInt,
+                password,
+                "stock.production.lot",
+                "search_read",
+                [[
+                  ["life_date", ">=", fechaHoyISO],
+                  ["life_date", "<=", fechaEn30DiasISO]
+                ]],
+                { fields: ["id", "name", "product_id", "life_date", "product_qty", "product_uom_id"] }
+              ], companyIdInt);
+            } catch (e) {}
+          }
+
+          if (Array.isArray(expiredLots)) {
+            expiredLots.forEach((l) => {
+              l.status = "expired";
+              lots.push(l);
+            });
+          }
+          if (Array.isArray(soonLots)) {
+            soonLots.forEach((l) => {
+              l.status = "soon";
+              lots.push(l);
+            });
+          }
+
+          // Query some compliant ones (ok) if lots are too few
+          if (lots.length < 5) {
+            try {
+              const okLots = await executeClientSideOdooCall(url, "/xmlrpc/2/object", "execute_kw", [
+                odooDb,
+                uidInt,
+                password,
+                "stock.production.lot",
                 "search_read",
                 [[
                   ["company_id", "in", [companyIdInt]],
-                  [field, "!=", false]
+                  ["life_date", ">", fechaEn30DiasISO]
                 ]],
                 { 
-                  fields: ["id", "name", "product_id", field, "product_qty", "product_uom_id"],
-                  context: { allowed_company_ids: [companyIdInt] }
+                  fields: ["id", "name", "product_id", "life_date", "product_qty", "product_uom_id"],
+                  context: { allowed_company_ids: [companyIdInt] },
+                  limit: 20
                 }
               ], companyIdInt);
-              if (Array.isArray(result) && result.length > 0) {
-                lots = result;
-                activeModel = model;
-                activeField = field;
-                break;
+              if (Array.isArray(okLots)) {
+                okLots.forEach((l) => {
+                  l.status = "ok";
+                  lots.push(l);
+                });
               }
             } catch (e) {}
           }
-          if (lots.length > 0) break;
+        } catch (err) {
+          console.warn("[API Mock Client-Side] Failed to query Odoo 14 lots style, falling back...", err);
+        }
+
+        // Fallback robust search if empty
+        if (lots.length === 0) {
+          const lotModels = ["stock.production.lot", "stock.lot"];
+          const dateFields = ["expiration_date", "life_date", "use_date", "removal_date"];
+          let activeField = "";
+
+          for (const model of lotModels) {
+            for (const field of dateFields) {
+              try {
+                const result = await executeClientSideOdooCall(url, "/xmlrpc/2/object", "execute_kw", [
+                  odooDb,
+                  uidInt,
+                  password,
+                  model,
+                  "search_read",
+                  [[
+                    ["company_id", "in", [companyIdInt]],
+                    [field, "!=", false]
+                  ]],
+                  { 
+                    fields: ["id", "name", "product_id", field, "product_qty", "product_uom_id"],
+                    context: { allowed_company_ids: [companyIdInt] }
+                  }
+                ], companyIdInt);
+                if (Array.isArray(result) && result.length > 0) {
+                  lots = result;
+                  activeField = field;
+                  break;
+                }
+              } catch (e) {}
+            }
+            if (lots.length > 0) break;
+          }
         }
 
         if (lots.length > 0) {
           const now = new Date();
           expiryAlerts = lots.map((lot: any) => {
-            const rawDate = activeField ? lot[activeField] : null;
+            const rawDate = lot.life_date || lot.expiration_date || lot.use_date || lot.removal_date;
             const expDate = rawDate ? new Date(rawDate) : new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000);
             const diffTime = expDate.getTime() - now.getTime();
             const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            let status: "expired" | "soon" | "ok" = "ok";
-            if (daysRemaining <= 0) {
-              status = "expired";
-            } else if (daysRemaining <= 30) {
-              status = "soon";
+            let status: "expired" | "soon" | "ok" = lot.status || "ok";
+            if (!lot.status) {
+              if (daysRemaining <= 0) {
+                status = "expired";
+              } else if (daysRemaining <= 30) {
+                status = "soon";
+              }
             }
             return {
               id: lot.id,
@@ -736,11 +857,60 @@ async function handleMockRequest(urlStr: string, init?: RequestInit): Promise<Re
           });
         }
 
+        // 5. POS Sessions from pos.session (Odoo 14, fields and company_id singular filter)
+        let posSessions: any[] = [];
+        try {
+          const rawSessions = await executeClientSideOdooCall(url, "/xmlrpc/2/object", "execute_kw", [
+            odooDb,
+            uidInt,
+            password,
+            "pos.session",
+            "search_read",
+            [[
+              ["company_id", "in", [companyIdInt]]
+            ]],
+            { 
+              fields: ["id", "name", "state", "user_id", "config_id", "start_at", "stop_at"],
+              context: { allowed_company_ids: [companyIdInt] }
+            }
+          ], companyIdInt);
+
+          if (Array.isArray(rawSessions)) {
+            posSessions = rawSessions.map((s: any) => {
+              const cashierName = s.user_id && Array.isArray(s.user_id) ? s.user_id[1] : "Cajero Odoo";
+              const stateLabel = s.state === "opened" ? "Abierto" : "Cerrado";
+              return {
+                id: s.id,
+                name: s.name || `Turno #${s.id}`,
+                cashier: cashierName,
+                openingDate: s.start_at ? s.start_at.replace("T", " ").split(".")[0] : "Sin fecha apertura",
+                closingDate: s.stop_at ? s.stop_at.replace("T", " ").split(".")[0] : "N/A",
+                openingBalance: 150.00,
+                closedAmount: s.state === "opened" ? 0 : 350.00,
+                totalRevenue: 200.00,
+                state: stateLabel,
+                config_id: s.config_id
+              };
+            });
+          }
+        } catch (err) {
+          console.warn("[API Mock Client-Side] Failed to fetch pos.session:", err);
+        }
+
         // Save back to client's simulated DB
         db.products = products;
         db.orders = orders;
         db.orderLines = orderLines;
         if (expiryAlerts.length > 0) db.expiryAlerts = expiryAlerts;
+        
+        if (posSessions.length > 0) {
+          db.posSessions = posSessions;
+        } else {
+          db.posSessions = db.posSessions.map((s: any) => ({
+            ...s,
+            config_id: s.config_id || [1, `Caja Principal Sede ${companyIdInt}`]
+          }));
+        }
         saveLocalDB(db);
 
         return jsonResponse({

@@ -135,6 +135,7 @@ export default function PosDailySum({
     const sessionsData: any[] = filteredSessions.map((s) => ({
       "ID Odoo": s.id,
       "Nombre de Sesión": s.name,
+      "Punto de Venta": s.config_id ? (Array.isArray(s.config_id) ? s.config_id[1] : s.config_id) : "Caja General",
       "Cajero / Operador": s.cashier,
       "Apertura Turno": s.openingDate,
       "Cierre Turno": s.closingDate,
@@ -572,6 +573,11 @@ export default function PosDailySum({
                       <tr key={sess.id} className="hover:bg-slate-50/75 transition-colors">
                         <td className="px-6 py-4">
                           <div className="font-extrabold text-slate-900">{sess.name}</div>
+                          {sess.config_id && (
+                            <div className="text-[11px] font-semibold text-[#8F3B76] mt-0.5">
+                              Punto de Venta: {Array.isArray(sess.config_id) ? sess.config_id[1] : sess.config_id}
+                            </div>
+                          )}
                           <span className="text-[10px] text-slate-400 font-mono mt-0.5 block">
                             Odoo Ref ID: #{sess.id}
                           </span>
