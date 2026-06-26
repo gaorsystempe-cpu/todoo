@@ -807,26 +807,36 @@ const customFetch = async (input: RequestInfo | URL, init?: RequestInit): Promis
 
     try {
       const response = await originalFetch(input, init);
-      // If we receive a gateway error, status 404 (common in static deploys) or status 502/504
+      // If we receive a gateway error, status 404 (common in static deploys) or status 502/504, fall back to client-side proxy execution
       if (response.status === 404 || response.status === 502 || response.status === 504) {
         if (isRealOdooRequest) {
-          const statusText = response.status === 404 ? "no encontrado (404)" : `error de pasarela (${response.status})`;
-          return new Response(JSON.stringify({
-            success: false,
-            message: `El servidor backend reportó un ${statusText}. Por favor espere un momento a que el servicio se inicie completamente.`
-          }), { status: 200, headers: { "Content-Type": "application/json" } });
+          console.warn(`[API Mock] Servidor backend devolvió estado ${response.status}. Intentando conexión directa desde el cliente con proxies CORS de respaldo...`);
+          try {
+            return await handleMockRequest(apiPath, init);
+          } catch (fallbackErr: any) {
+            const statusText = response.status === 404 ? "no encontrado (404)" : `error de pasarela (${response.status})`;
+            return new Response(JSON.stringify({
+              success: false,
+              message: `El servidor backend reportó un ${statusText}. Además, el reintento directo por proxy falló: ${fallbackErr.message || fallbackErr}`
+            }), { status: 200, headers: { "Content-Type": "application/json" } });
+          }
         }
         return await handleMockRequest(apiPath, init);
       }
       return response;
     } catch (err: any) {
       console.warn(`[API Mock] originalFetch a ${url} falló:`, err.message || err);
-      // TypeError: Failed to fetch (server is down or CORS block or no backend)
+      // TypeError: Failed to fetch (server is down or CORS block or no backend), fall back to client-side proxy execution
       if (isRealOdooRequest) {
-        return new Response(JSON.stringify({
-          success: false,
-          message: `No se pudo conectar al servidor backend. Verifique que el servicio esté activo y reintente en unos segundos.`
-        }), { status: 200, headers: { "Content-Type": "application/json" } });
+        console.warn(`[API Mock] No se pudo conectar al backend. Intentando conexión directa desde el cliente con proxies CORS de respaldo...`);
+        try {
+          return await handleMockRequest(apiPath, init);
+        } catch (fallbackErr: any) {
+          return new Response(JSON.stringify({
+            success: false,
+            message: `No se pudo conectar al servidor backend y la conexión directa falló: ${fallbackErr.message || fallbackErr}`
+          }), { status: 200, headers: { "Content-Type": "application/json" } });
+        }
       }
       return await handleMockRequest(apiPath, init);
     }
