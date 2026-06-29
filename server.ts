@@ -1277,7 +1277,7 @@ async function startServer() {
             ["company_id", "in", [companyIdInt]]
           ]],
           { 
-            fields: ["id", "name", "state", "user_id", "config_id", "start_at", "stop_at"],
+            fields: ["id", "name", "state", "user_id", "config_id", "start_at", "stop_at", "cash_register_balance_start", "cash_register_balance_end_real"],
             context: { allowed_company_ids: [companyIdInt] }
           }
         ]);
@@ -1300,7 +1300,7 @@ async function startServer() {
             "search_read",
             [[]],
             { 
-              fields: ["id", "name", "state", "user_id", "config_id", "start_at", "stop_at"]
+              fields: ["id", "name", "state", "user_id", "config_id", "start_at", "stop_at", "cash_register_balance_start", "cash_register_balance_end_real"]
             }
           ]);
           if (Array.isArray(rawSessionsNoCo)) {
@@ -1317,14 +1317,16 @@ async function startServer() {
           const cashierName = s.user_id && Array.isArray(s.user_id) ? s.user_id[1] : "Cajero Odoo";
           const stateLabel = s.state === "opened" ? "Abierto" : "Cerrado";
           const totalRev = revenueBySessionId[s.id] || 0;
+          const openBal = typeof s.cash_register_balance_start === "number" ? s.cash_register_balance_start : 150.00;
+          const closedAmt = s.state === "opened" ? 0 : (typeof s.cash_register_balance_end_real === "number" ? s.cash_register_balance_end_real : (openBal + totalRev));
           return {
             id: s.id,
             name: s.name || `Turno #${s.id}`,
             cashier: cashierName,
             openingDate: s.start_at ? s.start_at.replace("T", " ").split(".")[0] : "Sin fecha apertura",
             closingDate: s.stop_at ? s.stop_at.replace("T", " ").split(".")[0] : "N/A",
-            openingBalance: 150.00,
-            closedAmount: s.state === "opened" ? 0 : (150.00 + totalRev),
+            openingBalance: openBal,
+            closedAmount: closedAmt,
             totalRevenue: totalRev,
             state: stateLabel,
             config_id: s.config_id
@@ -1340,92 +1342,67 @@ async function startServer() {
       dbData.posReports = Array.isArray(posReports) ? posReports : [];
       dbData.odooUsers = Array.isArray(odooUsers) ? odooUsers : [];
 
-      // Generate POS sessions and transactions
+      // Generate POS sessions and transactions from real fetched data
       const sessions: any[] = [];
       const txs: any[] = [];
       
       if (posSessions.length > 0) {
         posSessions.forEach((s) => sessions.push(s));
-        
-        // Build real transaction list from real orders and order lines
-        if (Array.isArray(posOrders) && posOrders.length > 0) {
-          let txId = 9001;
-          const methods = ["Efectivo", "Yape / Plin", "Tarjeta de Crédito/Débito"];
-          posOrders.forEach((order: any) => {
-            const orderLines = linesByOrderId[order.id] || [];
-            const sessName = order.session_id && Array.isArray(order.session_id) ? order.session_id[1] : `Turno #${order.id}`;
-            const clientName = order.partner_id && Array.isArray(order.partner_id) ? order.partner_id[1] : "Clientes Varios";
-            const dateStr = order.date_order ? order.date_order.replace("T", " ").replace("Z", "").split(".")[0] : new Date().toISOString().split("T")[0];
-            const invoiceName = order.name || `TKT-${order.id}`;
-            const paymentMethod = methods[order.id % methods.length];
-
-            orderLines.forEach((line: any) => {
-              const prodName = line.product_id && Array.isArray(line.product_id) ? line.product_id[1] : "Producto POS";
-              const qty = line.qty || 1;
-              const subtotal = typeof line.price_subtotal_incl !== "undefined" 
-                ? line.price_subtotal_incl 
-                : (line.price_subtotal || (qty * (line.price_unit || 0)));
-              const priceUnit = line.price_unit || (subtotal / qty);
-
-              txs.push({
-                id: txId++,
-                sessionName: sessName,
-                invoiceName: invoiceName,
-                client: clientName,
-                date: dateStr,
-                productName: prodName,
-                qty: qty,
-                priceUnit: priceUnit,
-                subtotal: subtotal,
-                paymentMethod: paymentMethod
-              });
+      } else if (Array.isArray(posOrders) && posOrders.length > 0) {
+        // If posSessions is empty but we have real orders, extract sessions dynamically from the orders
+        const uniqueSessionIds = new Set<number>();
+        posOrders.forEach((order: any) => {
+          const sId = order.session_id && Array.isArray(order.session_id) ? order.session_id[0] : null;
+          const sName = order.session_id && Array.isArray(order.session_id) ? order.session_id[1] : null;
+          if (sId && !uniqueSessionIds.has(sId)) {
+            uniqueSessionIds.add(sId);
+            sessions.push({
+              id: sId,
+              name: sName || `Turno #${sId}`,
+              cashier: "Cajero Odoo",
+              openingDate: "Sin fecha apertura",
+              closingDate: "N/A",
+              openingBalance: 0.00,
+              closedAmount: 0.00,
+              totalRevenue: revenueBySessionId[sId] || 0.00,
+              state: "Cerrado",
+              config_id: null
             });
-          });
-        }
-      } else if (posReports.length > 0) {
+          }
+        });
+      }
+      
+      // Build real transactions from real orders if available
+      if (Array.isArray(posOrders) && posOrders.length > 0) {
         let txId = 9001;
-        posReports.forEach((rep: any, idx: number) => {
-          const dateStr = rep.date;
-          const morningSess = {
-            id: idx * 2 + 1,
-            name: `POS/${dateStr.replace(/-/g, "/")}-01`,
-            cashier: "Ana Ramos (Turno Mañana)",
-            openingDate: `${dateStr} 08:00:00`,
-            closingDate: `${dateStr} 14:00:00`,
-            openingBalance: 150.00,
-            closedAmount: 150.00 + (rep.totalSales * 0.5),
-            totalRevenue: rep.totalSales * 0.5,
-            state: "Cerrado" as const,
-            config_id: [1, `Caja Principal Sede ${companyIdInt}`] as [number, string]
-          };
-          const afternoonSess = {
-            id: idx * 2 + 2,
-            name: `POS/${dateStr.replace(/-/g, "/")}-02`,
-            cashier: "Pedro Solano (Turno Tarde)",
-            openingDate: `${dateStr} 14:00:00`,
-            closingDate: `${dateStr} 21:00:00`,
-            openingBalance: 150.00,
-            closedAmount: 150.00 + (rep.totalSales * 0.5),
-            totalRevenue: rep.totalSales * 0.5,
-            state: "Cerrado" as const,
-            config_id: [2, `Caja Secundaria Sede ${companyIdInt}`] as [number, string]
-          };
-          sessions.push(morningSess, afternoonSess);
+        const methods = ["Efectivo", "Yape / Plin", "Tarjeta de Crédito/Débito"];
+        posOrders.forEach((order: any) => {
+          const orderLines = linesByOrderId[order.id] || [];
+          const sessName = order.session_id && Array.isArray(order.session_id) ? order.session_id[1] : `Turno #${order.id}`;
+          const clientName = order.partner_id && Array.isArray(order.partner_id) ? order.partner_id[1] : "Clientes Varios";
+          const dateStr = order.date_order ? order.date_order.replace("T", " ").replace("Z", "").split(".")[0] : new Date().toISOString().split("T")[0];
+          const invoiceName = order.name || `TKT-${order.id}`;
+          const paymentMethod = methods[order.id % methods.length];
 
-          const methods = ["Efectivo", "Yape / Plin", "Tarjeta de Crédito/Débito"];
-          rep.products.forEach((p: any, pIdx: number) => {
-            const sessName = pIdx % 2 === 0 ? morningSess.name : afternoonSess.name;
+          orderLines.forEach((line: any) => {
+            const prodName = line.product_id && Array.isArray(line.product_id) ? line.product_id[1] : "Producto POS";
+            const qty = line.qty || 1;
+            const subtotal = typeof line.price_subtotal_incl !== "undefined" 
+              ? line.price_subtotal_incl 
+              : (line.price_subtotal || (qty * (line.price_unit || 0)));
+            const priceUnit = line.price_unit || (subtotal / qty);
+
             txs.push({
               id: txId++,
               sessionName: sessName,
-              invoiceName: pIdx % 2 === 0 ? `B001-000${450 + txId % 100}` : `F001-000${180 + txId % 100}`,
-              client: pIdx % 3 === 0 ? "Juan Pérez Alvarado" : (pIdx % 3 === 1 ? "Inversiones del Norte" : "Clientes Varios"),
-              date: `${dateStr} ${10 + (pIdx % 8)}:${10 + (pIdx % 45)}:00`,
-              productName: p.name,
-              qty: p.qty,
-              priceUnit: p.amount / p.qty,
-              subtotal: p.amount,
-              paymentMethod: methods[pIdx % 3]
+              invoiceName: invoiceName,
+              client: clientName,
+              date: dateStr,
+              productName: prodName,
+              qty: qty,
+              priceUnit: priceUnit,
+              subtotal: subtotal,
+              paymentMethod: paymentMethod
             });
           });
         });
