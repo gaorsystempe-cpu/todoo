@@ -786,6 +786,8 @@ async function startServer() {
           ]],
           { 
             fields: ["id", "name", "date_order", "user_id", "amount_total"],
+            order: "date_order desc",
+            limit: 500,
             context: { allowed_company_ids: [companyIdInt] }
           }
         ]);
@@ -1102,6 +1104,8 @@ async function startServer() {
             ]],
             { 
               fields: ["id", "name", "date_order", "amount_total", "lines", "invoice_id", "session_id", "partner_id"],
+              order: "date_order desc",
+              limit: 500,
               context: { allowed_company_ids: [companyIdInt] }
             }
           ]);
@@ -1119,6 +1123,8 @@ async function startServer() {
             ]],
             { 
               fields: ["id", "name", "date_order", "amount_total", "lines", "session_id", "partner_id"],
+              order: "date_order desc",
+              limit: 500,
               context: { allowed_company_ids: [companyIdInt] }
             }
           ]);
@@ -1138,7 +1144,9 @@ async function startServer() {
                 ["state", "in", ["draft", "paid", "done", "invoiced"]]
               ]],
               { 
-                fields: ["id", "name", "date_order", "amount_total", "lines", "session_id", "partner_id"]
+                fields: ["id", "name", "date_order", "amount_total", "lines", "session_id", "partner_id"],
+                order: "date_order desc",
+                limit: 500
               }
             ]);
           } catch (e2) {
@@ -1278,6 +1286,8 @@ async function startServer() {
           ]],
           { 
             fields: ["id", "name", "state", "user_id", "config_id", "start_at", "stop_at", "cash_register_balance_start", "cash_register_balance_end_real"],
+            order: "id desc",
+            limit: 100,
             context: { allowed_company_ids: [companyIdInt] }
           }
         ]);
@@ -1300,7 +1310,9 @@ async function startServer() {
             "search_read",
             [[]],
             { 
-              fields: ["id", "name", "state", "user_id", "config_id", "start_at", "stop_at", "cash_register_balance_start", "cash_register_balance_end_real"]
+              fields: ["id", "name", "state", "user_id", "config_id", "start_at", "stop_at", "cash_register_balance_start", "cash_register_balance_end_real"],
+              order: "id desc",
+              limit: 100
             }
           ]);
           if (Array.isArray(rawSessionsNoCo)) {
