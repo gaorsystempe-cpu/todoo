@@ -270,14 +270,14 @@ async function getDBAsync(): Promise<any> {
       rPosSessions,
       rPosTransactions
     ] = await Promise.all([
-      supabase.from("commission_rules").select("*"),
-      supabase.from("cached_products").select("*"),
-      supabase.from("cached_sale_orders").select("*"),
-      supabase.from("cached_sale_order_lines").select("*"),
-      supabase.from("cached_expiry_alerts").select("*"),
-      supabase.from("cached_pos_daily_reports").select("*"),
-      supabase.from("cached_pos_sessions").select("*"),
-      supabase.from("cached_pos_transactions").select("*")
+      supabase.from("rules").select("*"),
+      supabase.from("products").select("*"),
+      supabase.from("orders").select("*"),
+      supabase.from("orderLines").select("*"),
+      supabase.from("expiryAlerts").select("*"),
+      supabase.from("posReports").select("*"),
+      supabase.from("posSessions").select("*"),
+      supabase.from("posTransactions").select("*")
     ]);
 
     const hasAuthError = [
@@ -310,14 +310,14 @@ async function getDBAsync(): Promise<any> {
       console.warn(
         `[Supabase] Advertencia al consultar tablas en esquema "${supabaseSchema}". ¿Están creadas? Usando respaldo local. Detalles:`,
         {
-          commission_rules: rRules.error?.message,
-          cached_products: rProducts.error?.message,
-          cached_sale_orders: rOrders.error?.message,
-          cached_sale_order_lines: rOrderLines.error?.message,
-          cached_expiry_alerts: rExpiryAlerts.error?.message,
-          cached_pos_daily_reports: rPosReports.error?.message,
-          cached_pos_sessions: rPosSessions.error?.message,
-          cached_pos_transactions: rPosTransactions.error?.message
+          rules: rRules.error?.message,
+          products: rProducts.error?.message,
+          orders: rOrders.error?.message,
+          orderLines: rOrderLines.error?.message,
+          expiryAlerts: rExpiryAlerts.error?.message,
+          posReports: rPosReports.error?.message,
+          posSessions: rPosSessions.error?.message,
+          posTransactions: rPosTransactions.error?.message
         }
       );
       return localData;
@@ -350,7 +350,8 @@ async function getDBAsync(): Promise<any> {
       expiryAlerts: rExpiryAlerts.data || [],
       posReports: rPosReports.data || [],
       posSessions: rPosSessions.data || [],
-      posTransactions: rPosTransactions.data || []
+      posTransactions: rPosTransactions.data || [],
+      odooConnection: localData.odooConnection
     };
   } catch (err) {
     console.error("[Supabase] Error de consulta. Usando respaldo local:", err);
@@ -410,17 +411,17 @@ async function saveDBAsync(data: any): Promise<void> {
         if (!supabase || !Array.isArray(rows)) return;
         if (rows.length === 0) {
           try {
-            const { error } = await supabase.from("commission_rules").delete().neq("productId", -9999);
-            checkErrorAndDisableIfNeeded(error, "borrado tabla commission_rules");
+            const { error } = await supabase.from("rules").delete().neq("productId", -9999);
+            checkErrorAndDisableIfNeeded(error, "borrado tabla rules");
           } catch (e: any) {
-            console.warn("[Supabase] Error al borrar en tabla commission_rules:", e.message || e);
+            console.warn("[Supabase] Error al borrar en tabla rules:", e.message || e);
           }
           return;
         }
-        const { error } = await supabase.from("commission_rules").upsert(rows);
-        checkErrorAndDisableIfNeeded(error, "tabla commission_rules");
+        const { error } = await supabase.from("rules").upsert(rows);
+        checkErrorAndDisableIfNeeded(error, "tabla rules");
       } catch (err: any) {
-        console.error("[Supabase] Error crítico al sincronizar commission_rules:", err?.message || err);
+        console.error("[Supabase] Error crítico al sincronizar rules:", err?.message || err);
       }
     };
 
@@ -429,17 +430,17 @@ async function saveDBAsync(data: any): Promise<void> {
         if (!supabase || !Array.isArray(rows)) return;
         if (rows.length === 0) {
           try {
-            const { error } = await supabase.from("cached_pos_daily_reports").delete().neq("date", "1900-01-01");
-            checkErrorAndDisableIfNeeded(error, "borrado tabla cached_pos_daily_reports");
+            const { error } = await supabase.from("posReports").delete().neq("date", "1900-01-01");
+            checkErrorAndDisableIfNeeded(error, "borrado tabla posReports");
           } catch (e: any) {
-            console.warn("[Supabase] Error al borrar en tabla cached_pos_daily_reports:", e.message || e);
+            console.warn("[Supabase] Error al borrar en tabla posReports:", e.message || e);
           }
           return;
         }
-        const { error } = await supabase.from("cached_pos_daily_reports").upsert(rows);
-        checkErrorAndDisableIfNeeded(error, "tabla cached_pos_daily_reports");
+        const { error } = await supabase.from("posReports").upsert(rows);
+        checkErrorAndDisableIfNeeded(error, "tabla posReports");
       } catch (err: any) {
-        console.error("[Supabase] Error crítico al sincronizar cached_pos_daily_reports:", err?.message || err);
+        console.error("[Supabase] Error crítico al sincronizar posReports:", err?.message || err);
       }
     };
 
@@ -466,13 +467,13 @@ async function saveDBAsync(data: any): Promise<void> {
 
     await Promise.all([
       syncRules(data.rules),
-      syncTable("cached_products", data.products),
-      syncTable("cached_sale_orders", data.orders),
-      syncTable("cached_sale_order_lines", data.orderLines),
-      syncTable("cached_expiry_alerts", data.expiryAlerts),
+      syncTable("products", data.products),
+      syncTable("orders", data.orders),
+      syncTable("orderLines", data.orderLines),
+      syncTable("expiryAlerts", data.expiryAlerts),
       syncPosReports(data.posReports),
-      syncTable("cached_pos_sessions", data.posSessions),
-      syncTable("cached_pos_transactions", data.posTransactions),
+      syncTable("posSessions", data.posSessions),
+      syncTable("posTransactions", data.posTransactions),
       syncUsers(data.users || [])
     ]);
 
@@ -644,7 +645,7 @@ async function startServer() {
 
   // API Route: Fetch products & sales data filtered by Company ID
   app.post("/api/odoo/fetch-data", async (req, res) => {
-    const { url, db, username, password, uid, companyId } = req.body;
+    const { url, db, username, password, uid, companyId, companyName } = req.body;
 
     if (!url || !db || !username || !password || !uid || !companyId) {
       return res.status(400).json({
@@ -1442,7 +1443,7 @@ async function startServer() {
         companyId: parseInt(companyId, 10),
         isConnected: true,
         isDemoMode: false,
-        companyName: dbData.products.length > 0 ? "Empresa Odoo Sincronizada" : "GAORSYSTEM PERU"
+        companyName: companyName || (dbData.products.length > 0 ? "Empresa Odoo Sincronizada" : "GAORSYSTEM PERU")
       };
 
       await saveDBAsync(dbData);
@@ -1648,14 +1649,14 @@ async function startServer() {
       try {
         console.log("[Supabase] Reseteando tablas en el VPS...");
         await Promise.all([
-          supabase.from("commission_rules").delete().neq("productId", -9999),
-          supabase.from("cached_products").delete().neq("id", -9999),
-          supabase.from("cached_sale_orders").delete().neq("id", -9999),
-          supabase.from("cached_sale_order_lines").delete().neq("id", -9999),
-          supabase.from("cached_expiry_alerts").delete().neq("id", -9999),
-          supabase.from("cached_pos_daily_reports").delete().neq("date", "1900-01-01"),
-          supabase.from("cached_pos_sessions").delete().neq("id", -9999),
-          supabase.from("cached_pos_transactions").delete().neq("id", -9999)
+          supabase.from("rules").delete().neq("productId", -9999),
+          supabase.from("products").delete().neq("id", -9999),
+          supabase.from("orders").delete().neq("id", -9999),
+          supabase.from("orderLines").delete().neq("id", -9999),
+          supabase.from("expiryAlerts").delete().neq("id", -9999),
+          supabase.from("posReports").delete().neq("date", "1900-01-01"),
+          supabase.from("posSessions").delete().neq("id", -9999),
+          supabase.from("posTransactions").delete().neq("id", -9999)
         ]);
       } catch (err) {
         console.error("[Supabase] Error al limpiar tablas remotas en reset:", err);
@@ -1690,6 +1691,46 @@ async function startServer() {
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
+
+  // Background Sync Task: Sincronización automática de Odoo a Supabase cada 5 minutos
+  const runBackgroundSync = async () => {
+    try {
+      const dbData = getDB();
+      const conn = dbData.odooConnection;
+      if (conn && conn.isConnected && !conn.isDemoMode && conn.url && conn.db && conn.username && conn.password && conn.uid && conn.companyId) {
+        console.log(`[Odoo Sync Interval] Iniciando sincronización automática para compañía "${conn.companyName || conn.companyId}"...`);
+        
+        const response = await fetch(`http://localhost:${PORT}/api/odoo/fetch-data`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            url: conn.url,
+            db: conn.db,
+            username: conn.username,
+            password: conn.password,
+            uid: conn.uid,
+            companyId: conn.companyId,
+            companyName: conn.companyName
+          })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          console.log(`[Odoo Sync Interval] Sincronización exitosa. Actualizados ${result.products?.length || 0} productos y ${result.orders?.length || 0} pedidos.`);
+        } else {
+          console.error("[Odoo Sync Interval] Fallo en la sincronización automática de Odoo:", result.message);
+        }
+      } else {
+        console.log("[Odoo Sync Interval] Sincronización automática omitida: sin conexión a Odoo configurada o en modo Demo.");
+      }
+    } catch (err: any) {
+      console.error("[Odoo Sync Interval] Error crítico al ejecutar la tarea de sincronización automática de 5 minutos:", err.message || err);
+    }
+  };
+
+  // Run initial sync after 5 seconds of startup, then every 5 minutes
+  setTimeout(runBackgroundSync, 5000);
+  setInterval(runBackgroundSync, 5 * 60 * 1000);
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`[Odoo system] Server running on http://localhost:${PORT}`);

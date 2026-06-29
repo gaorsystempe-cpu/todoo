@@ -140,7 +140,8 @@ export default function OdooConnectionForm({
             username: connection.username || formValues.username,
             password: pwd,
             uid: uid,
-            companyId: companyId
+            companyId: companyId,
+            companyName: companyName
           })
         });
 
