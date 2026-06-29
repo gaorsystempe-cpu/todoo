@@ -21,6 +21,27 @@ function saveDB(data: any) {
   }
 }
 
+function convertToPeruDateString(utcDateStr: string): string {
+  if (!utcDateStr) return new Date().toISOString().split("T")[0];
+  const normalizedStr = utcDateStr.replace(" ", "T");
+  const isoStr = normalizedStr.endsWith("Z") ? normalizedStr : normalizedStr + "Z";
+  try {
+    const dateObj = new Date(isoStr);
+    if (isNaN(dateObj.getTime())) {
+      return utcDateStr.split(" ")[0] || utcDateStr.split("T")[0];
+    }
+    const options = { timeZone: "America/Lima", year: "numeric", month: "2-digit", day: "2-digit" } as const;
+    const formatter = new Intl.DateTimeFormat("en-US", options);
+    const parts = formatter.formatToParts(dateObj);
+    const year = parts.find(p => p.type === 'year')?.value;
+    const month = parts.find(p => p.type === 'month')?.value;
+    const day = parts.find(p => p.type === 'day')?.value;
+    return `${year}-${month}-${day}`;
+  } catch (e) {
+    return utcDateStr.split(" ")[0] || utcDateStr.split("T")[0];
+  }
+}
+
 function getDB() {
   if (fs.existsSync(DB_FILE)) {
     try {
@@ -58,15 +79,15 @@ function getDB() {
       { productId: 108, type: "flat", value: 10 }
     ],
     products: [
-      { id: 101, display_name: "[PROD001] Laptop UltraSlim 15\" Intel Core i7", default_code: "PROD001", list_price: 1250.00 },
-      { id: 102, display_name: "[PROD002] Monitor Curvo Gamer 34\" QuadHD", default_code: "PROD002", list_price: 480.00 },
-      { id: 103, display_name: "[PROD003] Teclado Mecánico RGB Switch Blue", default_code: "PROD003", list_price: 85.00 },
-      { id: 104, display_name: "[PROD004] Mouse Ergonómico Inalámbrico Silent", default_code: "PROD004", list_price: 45.00 },
-      { id: 105, display_name: "[PROD005] Licencia Anual ERP Custom Premium", default_code: "PROD005", list_price: 2500.00 },
-      { id: 106, display_name: "[PROD006] Servicio de Instalación y Soporte Técnico", default_code: "PROD006", list_price: 150.00 },
-      { id: 107, display_name: "[PROD007] Auriculares Premium Noise Cancelling", default_code: "PROD007", list_price: 220.00 },
-      { id: 108, display_name: "[PROD008] Disco Duro Externo SSD NVMe 2TB", default_code: "PROD008", list_price: 180.00 },
-      { id: 109, display_name: "[PROD009] Cámara Web 4K Pro Ultra Streaming", default_code: "PROD009", list_price: 120.00 }
+      { id: 101, display_name: "[FARM001] Paracetamol 500mg (Caja x 100)", default_code: "FARM001", list_price: 1250.00 },
+      { id: 102, display_name: "[FARM002] Amoxicilina 500mg (Caja x 100)", default_code: "FARM002", list_price: 480.00 },
+      { id: 103, display_name: "[FARM003] Ibuprofeno 400mg (Caja x 100)", default_code: "FARM003", list_price: 85.00 },
+      { id: 104, display_name: "[FARM004] Alcohol Antiséptico 70° 1L", default_code: "FARM004", list_price: 45.00 },
+      { id: 105, display_name: "[FARM005] Multivitamínico Supradyn x 30", default_code: "FARM005", list_price: 2500.00 },
+      { id: 106, display_name: "[FARM006] Mascarillas Quirúrgicas Celeste x 50", default_code: "FARM006", list_price: 150.00 },
+      { id: 107, display_name: "[FARM007] Omeprazol 20mg (Caja x 30)", default_code: "FARM007", list_price: 220.00 },
+      { id: 108, display_name: "[FARM008] Loratadina 10mg (Caja x 100)", default_code: "FARM008", list_price: 180.00 },
+      { id: 109, display_name: "[FARM009] Vitamina C Redoxon Efervescente", default_code: "FARM009", list_price: 120.00 }
     ],
     orders: [
       { id: 501, name: "SO001", date_order: "2026-06-01 10:15:30", user_id: [111, "Carlos Mendoza"], amount_total: 2980.00 },
@@ -83,44 +104,44 @@ function getDB() {
       { id: 512, name: "SO013", date_order: "2026-06-21 16:50:30", user_id: [114, "Daniela Vargas"], amount_total: 7500.00 }
     ],
     orderLines: [
-      { id: 2001, order_id: [501, "SO001"], product_id: [101, "Laptop UltraSlim 15\" Intel Core i7"], product_uom_qty: 2, price_unit: 1250.00, price_subtotal: 2500.00 },
-      { id: 2002, order_id: [501, "SO001"], product_id: [102, "Monitor Curvo Gamer 34\" QuadHD"], product_uom_qty: 1, price_unit: 480.00, price_subtotal: 480.00 },
-      { id: 2003, order_id: [502, "SO002"], product_id: [101, "Laptop UltraSlim 15\" Intel Core i7"], product_uom_qty: 3, price_unit: 1250.00, price_subtotal: 3750.00 },
-      { id: 2004, order_id: [502, "SO002"], product_id: [102, "Monitor Curvo Gamer 34\" QuadHD"], product_uom_qty: 2, price_unit: 480.00, price_subtotal: 960.00 },
-      { id: 2005, order_id: [502, "SO002"], product_id: [103, "Teclado Mecánico RGB Switch Blue"], product_uom_qty: 3, price_unit: 85.00, price_subtotal: 255.00 },
-      { id: 2006, order_id: [502, "SO002"], product_id: [104, "Mouse Ergonómico Inalámbrico Silent"], product_uom_qty: 3, price_unit: 45.00, price_subtotal: 155.00 },
-      { id: 2007, order_id: [503, "SO003"], product_id: [102, "Monitor Curvo Gamer 34\" QuadHD"], product_uom_qty: 2, price_unit: 480.00, price_subtotal: 960.00 },
-      { id: 2008, order_id: [503, "SO003"], product_id: [103, "Teclado Mecánico RGB Switch Blue"], product_uom_qty: 3, price_unit: 85.00, price_subtotal: 255.00 },
-      { id: 2009, order_id: [503, "SO003"], product_id: [108, "Disco Duro Externo SSD NVMe 2TB"], product_uom_qty: 1, price_unit: 180.00, price_subtotal: 180.00 },
-      { id: 2010, order_id: [504, "SO004"], product_id: [101, "Laptop UltraSlim 15\" Intel Core i7"], product_uom_qty: 2, price_unit: 1250.00, price_subtotal: 2500.00 },
-      { id: 2011, order_id: [504, "SO004"], product_id: [106, "Servicio de Instalación y Soporte Técnico"], product_uom_qty: 1, price_unit: 150.00, price_subtotal: 150.00 },
-      { id: 2012, order_id: [505, "SO005"], product_id: [103, "Teclado Mecánico RGB Switch Blue"], product_uom_qty: 2, price_unit: 85.00, price_subtotal: 170.00 },
-      { id: 2013, order_id: [505, "SO005"], product_id: [104, "Mouse Ergonómico Inalámbrico Silent"], product_uom_qty: 3, price_unit: 45.00, price_subtotal: 135.00 },
-      { id: 2014, order_id: [505, "SO005"], product_id: [109, "Cámara Web 4K Pro Ultra Streaming"], product_uom_qty: 1, price_unit: 110.00, price_subtotal: 110.00 },
-      { id: 2015, order_id: [506, "SO006"], product_id: [101, "Laptop UltraSlim 15\" Intel Core i7"], product_uom_qty: 2, price_unit: 1250.00, price_subtotal: 2500.00 },
-      { id: 2016, order_id: [506, "SO006"], product_id: [102, "Monitor Curvo Gamer 34\" QuadHD"], product_uom_qty: 2, price_unit: 480.00, price_subtotal: 960.00 },
-      { id: 2017, order_id: [506, "SO006"], product_id: [107, "Auriculares Premium Noise Cancelling"], product_uom_qty: 1, price_unit: 210.00, price_subtotal: 210.00 },
-      { id: 2018, order_id: [507, "SO007"], product_id: [105, "Licencia Anual ERP Custom Premium"], product_uom_qty: 1, price_unit: 2500.00, price_subtotal: 2500.00 },
-      { id: 2019, order_id: [508, "SO008"], product_id: [107, "Auriculares Premium Noise Cancelling"], product_uom_qty: 2, price_unit: 220.00, price_subtotal: 440.00 },
-      { id: 2020, order_id: [508, "SO008"], product_id: [106, "Servicio de Instalación y Soporte Técnico"], product_uom_qty: 1, price_unit: 50.00, price_subtotal: 50.00 },
-      { id: 2021, order_id: [509, "SO009"], product_id: [101, "Laptop UltraSlim 15\" Intel Core i7"], product_uom_qty: 1, price_unit: 1250.00, price_subtotal: 1250.00 },
-      { id: 2022, order_id: [509, "SO009"], product_id: [107, "Auriculares Premium Noise Cancelling"], product_uom_qty: 1, price_unit: 220.00, price_subtotal: 220.00 },
-      { id: 2023, order_id: [509, "SO009"], product_id: [104, "Mouse Ergonómico Inalámbrico Silent"], product_uom_qty: 1, price_unit: 45.00, price_subtotal: 45.00 },
-      { id: 2024, order_id: [510, "SO011"], product_id: [105, "Licencia Anual ERP Custom Premium"], product_uom_qty: 2, price_unit: 2500.00, price_subtotal: 5000.00 },
-      { id: 2025, order_id: [510, "SO011"], product_id: [108, "Disco Duro Externo SSD NVMe 2TB"], product_uom_qty: 2, price_unit: 180.00, price_subtotal: 360.00 },
-      { id: 2026, order_id: [510, "SO011"], product_id: [106, "Servicio de Instalación y Soporte Técnico"], product_uom_qty: 1, price_unit: 50.00, price_subtotal: 50.00 },
-      { id: 2027, order_id: [511, "SO012"], product_id: [101, "Laptop UltraSlim 15\" Intel Core i7"], product_uom_qty: 1, price_unit: 1250.00, price_subtotal: 1250.00 },
-      { id: 2028, order_id: [511, "SO012"], product_id: [102, "Monitor Curvo Gamer 34\" QuadHD"], product_uom_qty: 1, price_unit: 370.00, price_subtotal: 370.00 },
-      { id: 2029, order_id: [512, "SO013"], product_id: [105, "Licencia Anual ERP Custom Premium"], product_uom_qty: 3, price_unit: 2500.00, price_subtotal: 7500.00 }
+      { id: 2001, order_id: [501, "SO001"], product_id: [101, "Paracetamol 500mg (Caja x 100)"], product_uom_qty: 2, price_unit: 1250.00, price_subtotal: 2500.00 },
+      { id: 2002, order_id: [501, "SO001"], product_id: [102, "Amoxicilina 500mg (Caja x 100)"], product_uom_qty: 1, price_unit: 480.00, price_subtotal: 480.00 },
+      { id: 2003, order_id: [502, "SO002"], product_id: [101, "Paracetamol 500mg (Caja x 100)"], product_uom_qty: 3, price_unit: 1250.00, price_subtotal: 3750.00 },
+      { id: 2004, order_id: [502, "SO002"], product_id: [102, "Amoxicilina 500mg (Caja x 100)"], product_uom_qty: 2, price_unit: 480.00, price_subtotal: 960.00 },
+      { id: 2005, order_id: [502, "SO002"], product_id: [103, "Ibuprofeno 400mg (Caja x 100)"], product_uom_qty: 3, price_unit: 85.00, price_subtotal: 255.00 },
+      { id: 2006, order_id: [502, "SO002"], product_id: [104, "Alcohol Antiséptico 70° 1L"], product_uom_qty: 3, price_unit: 45.00, price_subtotal: 155.00 },
+      { id: 2007, order_id: [503, "SO003"], product_id: [102, "Amoxicilina 500mg (Caja x 100)"], product_uom_qty: 2, price_unit: 480.00, price_subtotal: 960.00 },
+      { id: 2008, order_id: [503, "SO003"], product_id: [103, "Ibuprofeno 400mg (Caja x 100)"], product_uom_qty: 3, price_unit: 85.00, price_subtotal: 255.00 },
+      { id: 2009, order_id: [503, "SO003"], product_id: [108, "Loratadina 10mg (Caja x 100)"], product_uom_qty: 1, price_unit: 180.00, price_subtotal: 180.00 },
+      { id: 2010, order_id: [504, "SO004"], product_id: [101, "Paracetamol 500mg (Caja x 100)"], product_uom_qty: 2, price_unit: 1250.00, price_subtotal: 2500.00 },
+      { id: 2011, order_id: [504, "SO004"], product_id: [106, "Mascarillas Quirúrgicas Celeste x 50"], product_uom_qty: 1, price_unit: 150.00, price_subtotal: 150.00 },
+      { id: 2012, order_id: [505, "SO005"], product_id: [103, "Ibuprofeno 400mg (Caja x 100)"], product_uom_qty: 2, price_unit: 85.00, price_subtotal: 170.00 },
+      { id: 2013, order_id: [505, "SO005"], product_id: [104, "Alcohol Antiséptico 70° 1L"], product_uom_qty: 3, price_unit: 45.00, price_subtotal: 135.00 },
+      { id: 2014, order_id: [505, "SO005"], product_id: [109, "Vitamina C Redoxon Efervescente"], product_uom_qty: 1, price_unit: 110.00, price_subtotal: 110.00 },
+      { id: 2015, order_id: [506, "SO006"], product_id: [101, "Paracetamol 500mg (Caja x 100)"], product_uom_qty: 2, price_unit: 1250.00, price_subtotal: 2500.00 },
+      { id: 2016, order_id: [506, "SO006"], product_id: [102, "Amoxicilina 500mg (Caja x 100)"], product_uom_qty: 2, price_unit: 480.00, price_subtotal: 960.00 },
+      { id: 2017, order_id: [506, "SO006"], product_id: [107, "Omeprazol 20mg (Caja x 30)"], product_uom_qty: 1, price_unit: 210.00, price_subtotal: 210.00 },
+      { id: 2018, order_id: [507, "SO007"], product_id: [105, "Multivitamínico Supradyn x 30"], product_uom_qty: 1, price_unit: 2500.00, price_subtotal: 2500.00 },
+      { id: 2019, order_id: [508, "SO008"], product_id: [107, "Omeprazol 20mg (Caja x 30)"], product_uom_qty: 2, price_unit: 220.00, price_subtotal: 440.00 },
+      { id: 2020, order_id: [508, "SO008"], product_id: [106, "Mascarillas Quirúrgicas Celeste x 50"], product_uom_qty: 1, price_unit: 50.00, price_subtotal: 50.00 },
+      { id: 2021, order_id: [509, "SO009"], product_id: [101, "Paracetamol 500mg (Caja x 100)"], product_uom_qty: 1, price_unit: 1250.00, price_subtotal: 1250.00 },
+      { id: 2022, order_id: [509, "SO009"], product_id: [107, "Omeprazol 20mg (Caja x 30)"], product_uom_qty: 1, price_unit: 220.00, price_subtotal: 220.00 },
+      { id: 2023, order_id: [509, "SO009"], product_id: [104, "Alcohol Antiséptico 70° 1L"], product_uom_qty: 1, price_unit: 45.00, price_subtotal: 45.00 },
+      { id: 2024, order_id: [510, "SO011"], product_id: [105, "Multivitamínico Supradyn x 30"], product_uom_qty: 2, price_unit: 2500.00, price_subtotal: 5000.00 },
+      { id: 2025, order_id: [510, "SO011"], product_id: [108, "Loratadina 10mg (Caja x 100)"], product_uom_qty: 2, price_unit: 180.00, price_subtotal: 360.00 },
+      { id: 2026, order_id: [510, "SO011"], product_id: [106, "Mascarillas Quirúrgicas Celeste x 50"], product_uom_qty: 1, price_unit: 50.00, price_subtotal: 50.00 },
+      { id: 2027, order_id: [511, "SO012"], product_id: [101, "Paracetamol 500mg (Caja x 100)"], product_uom_qty: 1, price_unit: 1250.00, price_subtotal: 1250.00 },
+      { id: 2028, order_id: [511, "SO012"], product_id: [102, "Amoxicilina 500mg (Caja x 100)"], product_uom_qty: 1, price_unit: 370.00, price_subtotal: 370.00 },
+      { id: 2029, order_id: [512, "SO013"], product_id: [105, "Multivitamínico Supradyn x 30"], product_uom_qty: 3, price_unit: 2500.00, price_subtotal: 7500.00 }
     ],
     expiryAlerts: [
-      { id: 1, productName: "Laptop UltraSlim 15\" Intel Core i7", defaultCode: "PROD001", lotNumber: "LOTE-LP-2026A", expiryDate: "2026-06-15", daysRemaining: -7, stockQty: 3, location: "Almacén Principal A-12", status: "expired" },
-      { id: 2, productName: "Monitor Curvo Gamer 34\" QuadHD", defaultCode: "PROD002", lotNumber: "LOTE-MN-34Y2", expiryDate: "2026-07-15", daysRemaining: 23, stockQty: 8, location: "Almacén de Exhibición", status: "soon" },
-      { id: 3, productName: "Teclado Mecánico RGB Switch Blue", defaultCode: "PROD003", lotNumber: "LOTE-KB-BLUE8", expiryDate: "2026-07-02", daysRemaining: 10, stockQty: 25, location: "Estante Pasadizo 4", status: "soon" },
-      { id: 4, productName: "Mouse Ergonómico Inalámbrico Silent", defaultCode: "PROD004", lotNumber: "LOTE-MS-SIL03", expiryDate: "2026-07-20", daysRemaining: 28, stockQty: 40, location: "Caja de Reserva B", status: "soon" },
-      { id: 5, productName: "Auriculares Premium Noise Cancelling", defaultCode: "PROD007", lotNumber: "LOTE-AUD-NC09", expiryDate: "2026-07-05", daysRemaining: 13, stockQty: 15, location: "Almacén Principal A-15", status: "soon" },
-      { id: 6, productName: "Disco Duro Externo SSD NVMe 2TB", defaultCode: "PROD008", lotNumber: "LOTE-SSD-2TBX", expiryDate: "2026-09-12", daysRemaining: 82, stockQty: 12, location: "Estante Seguridad", status: "ok" },
-      { id: 7, productName: "Cámara Web 4K Pro Ultra Streaming", defaultCode: "PROD009", lotNumber: "LOTE-CAM-4KPRO", expiryDate: "2026-10-30", daysRemaining: 130, stockQty: 20, location: "Almacén Principal B-2", status: "ok" }
+      { id: 1, productName: "Paracetamol 500mg (Caja x 100)", defaultCode: "FARM001", lotNumber: "LOTE-LP-2026A", expiryDate: "2026-06-15", daysRemaining: -7, stockQty: 3, location: "Almacén Principal A-12", status: "expired" },
+      { id: 2, productName: "Amoxicilina 500mg (Caja x 100)", defaultCode: "FARM002", lotNumber: "LOTE-MN-34Y2", expiryDate: "2026-07-15", daysRemaining: 23, stockQty: 8, location: "Almacén de Exhibición", status: "soon" },
+      { id: 3, productName: "Ibuprofeno 400mg (Caja x 100)", defaultCode: "FARM003", lotNumber: "LOTE-KB-BLUE8", expiryDate: "2026-07-02", daysRemaining: 10, stockQty: 25, location: "Estante Pasadizo 4", status: "soon" },
+      { id: 4, productName: "Alcohol Antiséptico 70° 1L", defaultCode: "FARM004", lotNumber: "LOTE-MS-SIL03", expiryDate: "2026-07-20", daysRemaining: 28, stockQty: 40, location: "Caja de Reserva B", status: "soon" },
+      { id: 5, productName: "Omeprazol 20mg (Caja x 30)", defaultCode: "FARM007", lotNumber: "LOTE-AUD-NC09", expiryDate: "2026-07-05", daysRemaining: 13, stockQty: 15, location: "Almacén Principal A-15", status: "soon" },
+      { id: 6, productName: "Loratadina 10mg (Caja x 100)", defaultCode: "FARM008", lotNumber: "LOTE-SSD-2TBX", expiryDate: "2026-09-12", daysRemaining: 82, stockQty: 12, location: "Estante Seguridad", status: "ok" },
+      { id: 7, productName: "Vitamina C Redoxon Efervescente", defaultCode: "FARM009", lotNumber: "LOTE-CAM-4KPRO", expiryDate: "2026-10-30", daysRemaining: 130, stockQty: 20, location: "Almacén Principal B-2", status: "ok" }
     ],
     posReports: [
       {
@@ -132,11 +153,11 @@ function getDB() {
           { method: "Tarjeta de Crédito/Débito", amount: 1470.00 }
         ],
         products: [
-          { id: 101, name: "Laptop UltraSlim 15\" Intel Core i7", code: "PROD001", qty: 2, amount: 2500.00 },
-          { id: 102, name: "Monitor Curvo Gamer 34\" QuadHD", code: "PROD002", qty: 3, amount: 1440.00 },
-          { id: 103, name: "Teclado Mecánico RGB Switch Blue", code: "PROD003", qty: 5, amount: 425.00 },
-          { id: 104, name: "Mouse Ergonómico Inalámbrico Silent", code: "PROD004", qty: 3, amount: 135.00 },
-          { id: 106, name: "Servicio de Instalación y Soporte Técnico", code: "PROD006", qty: 1, amount: 20.00 }
+          { id: 101, name: "Paracetamol 500mg (Caja x 100)", code: "FARM001", qty: 2, amount: 2500.00 },
+          { id: 102, name: "Amoxicilina 500mg (Caja x 100)", code: "FARM002", qty: 3, amount: 1440.00 },
+          { id: 103, name: "Ibuprofeno 400mg (Caja x 100)", code: "FARM003", qty: 5, amount: 425.00 },
+          { id: 104, name: "Alcohol Antiséptico 70° 1L", code: "FARM004", qty: 3, amount: 135.00 },
+          { id: 106, name: "Mascarillas Quirúrgicas Celeste x 50", code: "FARM006", qty: 1, amount: 20.00 }
         ],
         documents: [
           { type: "Boleta de Venta Electrónica", count: 12, amount: 1820.00 },
@@ -152,9 +173,9 @@ function getDB() {
           { method: "Tarjeta de Crédito/Débito", amount: 1600.00 }
         ],
         products: [
-          { id: 102, name: "Monitor Curvo Gamer 34\" QuadHD", code: "PROD002", qty: 4, amount: 1920.00 },
-          { id: 107, name: "Auriculares Premium Noise Cancelling", code: "PROD007", qty: 5, amount: 1100.00 },
-          { id: 103, name: "Teclado Mecánico RGB Switch Blue", code: "PROD003", qty: 10, amount: 850.00 }
+          { id: 102, name: "Amoxicilina 500mg (Caja x 100)", code: "FARM002", qty: 4, amount: 1920.00 },
+          { id: 107, name: "Omeprazol 20mg (Caja x 30)", code: "FARM007", qty: 5, amount: 1100.00 },
+          { id: 103, name: "Ibuprofeno 400mg (Caja x 100)", code: "FARM003", qty: 10, amount: 850.00 }
         ],
         documents: [
           { type: "Boleta de Venta Electrónica", count: 18, amount: 1250.00 },
@@ -170,9 +191,9 @@ function getDB() {
           { method: "Tarjeta de Crédito/Débito", amount: 2000.00 }
         ],
         products: [
-          { id: 105, name: "Licencia Anual ERP Custom Premium", code: "PROD005", qty: 2, amount: 5000.00 },
-          { id: 108, name: "Disco Duro Externo SSD NVMe 2TB", code: "PROD008", qty: 2, amount: 360.00 },
-          { id: 106, name: "Servicio de Instalación y Soporte Técnico", code: "PROD006", qty: 1, amount: 50.00 }
+          { id: 105, name: "Multivitamínico Supradyn x 30", code: "FARM005", qty: 2, amount: 5000.00 },
+          { id: 108, name: "Loratadina 10mg (Caja x 100)", code: "FARM008", qty: 2, amount: 360.00 },
+          { id: 106, name: "Mascarillas Quirúrgicas Celeste x 50", code: "FARM006", qty: 1, amount: 50.00 }
         ],
         documents: [
           { type: "Boleta de Venta Electrónica", count: 8, amount: 410.00 },
@@ -188,21 +209,21 @@ function getDB() {
       { id: 5, name: "POS/2026/06/23-01", cashier: "Elena Castro (Turno Mañana)", openingDate: "2026-06-23 08:00:00", closingDate: "N/A", openingBalance: 200.00, closedAmount: 0.00, totalRevenue: 1450.00, state: "Abierto" }
     ],
     posTransactions: [
-      { id: 8001, sessionName: "POS/2026/06/22-01", invoiceName: "B001-000452", client: "Carlos Villacorta Prado", date: "2026-06-22 09:15:22", productName: "Laptop UltraSlim 15\" Intel Core i7", qty: 1, priceUnit: 1250.00, subtotal: 1250.00, paymentMethod: "Yape / Plin" },
-      { id: 8002, sessionName: "POS/2026/06/22-01", invoiceName: "B001-000453", client: "María de la Cruz Rojas", date: "2026-06-22 10:24:05", productName: "Teclado Mecánico RGB Switch Blue", qty: 2, priceUnit: 85.00, subtotal: 170.00, paymentMethod: "Efectivo" },
-      { id: 8003, sessionName: "POS/2026/06/22-01", invoiceName: "F001-000189", client: "Inversiones San José S.A.C.", date: "2026-06-22 11:42:18", productName: "Monitor Curvo Gamer 34\" QuadHD", qty: 2, priceUnit: 480.00, subtotal: 960.00, paymentMethod: "Tarjeta de Crédito/Débito" },
-      { id: 8004, sessionName: "POS/2026/06/22-01", invoiceName: "B001-000454", client: "José Luis Neyra", date: "2026-06-22 13:10:50", productName: "Mouse Ergonómico Inalámbrico Silent", qty: 1, priceUnit: 40.00, subtotal: 40.00, paymentMethod: "Yape / Plin" },
-      { id: 8005, sessionName: "POS/2026/06/22-02", invoiceName: "B001-000455", client: "Alejandra Gómez Reyna", date: "2026-06-22 15:05:11", productName: "Laptop UltraSlim 15\" Intel Core i7", qty: 1, priceUnit: 1250.00, subtotal: 1250.00, paymentMethod: "Tarjeta de Crédito/Débito" },
-      { id: 8006, sessionName: "POS/2026/06/22-02", invoiceName: "B001-000456", client: "Piero Alarcón Sifuentes", date: "2026-06-22 16:40:55", productName: "Monitor Curvo Gamer 34\" QuadHD", qty: 1, priceUnit: 480.00, subtotal: 480.00, paymentMethod: "Yape / Plin" },
-      { id: 8007, sessionName: "POS/2026/06/22-02", invoiceName: "B001-000457", client: "Clientes Varios", date: "2026-06-22 18:20:30", productName: "Teclado Mecánico RGB Switch Blue", qty: 3, priceUnit: 85.00, subtotal: 255.00, paymentMethod: "Efectivo" },
-      { id: 8008, sessionName: "POS/2026/06/22-02", invoiceName: "B001-000458", client: "Raúl Benavente", date: "2026-06-22 19:45:12", productName: "Mouse Ergonómico Inalámbrico Silent", qty: 2, priceUnit: 45.00, subtotal: 90.00, paymentMethod: "Efectivo" },
-      { id: 8009, sessionName: "POS/2026/06/22-02", invoiceName: "B001-000459", client: "Clientes Varios", date: "2026-06-22 20:30:11", productName: "Servicio de Instalación y Soporte Técnico", qty: 1, priceUnit: 25.00, subtotal: 25.00, paymentMethod: "Yape / Plin" },
-      { id: 8010, sessionName: "POS/2026/06/21-01", invoiceName: "B001-000430", client: "Diana Cáceres Wong", date: "2026-06-21 09:40:22", productName: "Monitor Curvo Gamer 34\" QuadHD", qty: 2, priceUnit: 480.00, subtotal: 960.00, paymentMethod: "Yape / Plin" },
-      { id: 8011, sessionName: "POS/2026/06/21-01", invoiceName: "B001-000431", client: "Marcos Sandoval Ruiz", date: "2026-06-21 11:15:10", productName: "Auriculares Premium Noise Cancelling", qty: 3, priceUnit: 220.00, subtotal: 660.00, paymentMethod: "Tarjeta de Crédito/Débito" },
-      { id: 8012, sessionName: "POS/2026/06/21-01", invoiceName: "B001-000432", client: "Clientes Varios", date: "2026-06-21 13:20:00", productName: "Teclado Mecánico RGB Switch Blue", qty: 2, priceUnit: 85.00, subtotal: 170.00, paymentMethod: "Efectivo" },
-      { id: 8013, sessionName: "POS/2026/06/21-02", invoiceName: "F001-000175", client: "Tecnologías del Pacífico S.A.C.", date: "2026-06-21 15:10:45", productName: "Monitor Curvo Gamer 34\" QuadHD", qty: 2, priceUnit: 480.00, subtotal: 960.00, paymentMethod: "Tarjeta de Crédito/Débito" },
-      { id: 8014, sessionName: "POS/2026/06/21-02", invoiceName: "B001-000433", client: "Gisela Ponce Ortiz", date: "2026-06-21 17:35:19", productName: "Auriculares Premium Noise Cancelling", qty: 2, priceUnit: 220.00, subtotal: 440.00, paymentMethod: "Yape / Plin" },
-      { id: 8015, sessionName: "POS/2026/06/21-02", invoiceName: "B001-000434", client: "Clientes Varios", date: "2026-06-21 19:12:00", productName: "Teclado Mecánico RGB Switch Blue", qty: 8, priceUnit: 85.00, subtotal: 680.00, paymentMethod: "Efectivo" }
+      { id: 8001, sessionName: "POS/2026/06/22-01", invoiceName: "B001-000452", client: "Carlos Villacorta Prado", date: "2026-06-22 09:15:22", productName: "Paracetamol 500mg (Caja x 100)", qty: 1, priceUnit: 1250.00, subtotal: 1250.00, paymentMethod: "Yape / Plin" },
+      { id: 8002, sessionName: "POS/2026/06/22-01", invoiceName: "B001-000453", client: "María de la Cruz Rojas", date: "2026-06-22 10:24:05", productName: "Ibuprofeno 400mg (Caja x 100)", qty: 2, priceUnit: 85.00, subtotal: 170.00, paymentMethod: "Efectivo" },
+      { id: 8003, sessionName: "POS/2026/06/22-01", invoiceName: "F001-000189", client: "Inversiones San José S.A.C.", date: "2026-06-22 11:42:18", productName: "Amoxicilina 500mg (Caja x 100)", qty: 2, priceUnit: 480.00, subtotal: 960.00, paymentMethod: "Tarjeta de Crédito/Débito" },
+      { id: 8004, sessionName: "POS/2026/06/22-01", invoiceName: "B001-000454", client: "José Luis Neyra", date: "2026-06-22 13:10:50", productName: "Alcohol Antiséptico 70° 1L", qty: 1, priceUnit: 40.00, subtotal: 40.00, paymentMethod: "Yape / Plin" },
+      { id: 8005, sessionName: "POS/2026/06/22-02", invoiceName: "B001-000455", client: "Alejandra Gómez Reyna", date: "2026-06-22 15:05:11", productName: "Paracetamol 500mg (Caja x 100)", qty: 1, priceUnit: 1250.00, subtotal: 1250.00, paymentMethod: "Tarjeta de Crédito/Débito" },
+      { id: 8006, sessionName: "POS/2026/06/22-02", invoiceName: "B001-000456", client: "Piero Alarcón Sifuentes", date: "2026-06-22 16:40:55", productName: "Amoxicilina 500mg (Caja x 100)", qty: 1, priceUnit: 480.00, subtotal: 480.00, paymentMethod: "Yape / Plin" },
+      { id: 8007, sessionName: "POS/2026/06/22-02", invoiceName: "B001-000457", client: "Clientes Varios", date: "2026-06-22 18:20:30", productName: "Ibuprofeno 400mg (Caja x 100)", qty: 3, priceUnit: 85.00, subtotal: 255.00, paymentMethod: "Efectivo" },
+      { id: 8008, sessionName: "POS/2026/06/22-02", invoiceName: "B001-000458", client: "Raúl Benavente", date: "2026-06-22 19:45:12", productName: "Alcohol Antiséptico 70° 1L", qty: 2, priceUnit: 45.00, subtotal: 90.00, paymentMethod: "Efectivo" },
+      { id: 8009, sessionName: "POS/2026/06/22-02", invoiceName: "B001-000459", client: "Clientes Varios", date: "2026-06-22 20:30:11", productName: "Mascarillas Quirúrgicas Celeste x 50", qty: 1, priceUnit: 25.00, subtotal: 25.00, paymentMethod: "Yape / Plin" },
+      { id: 8010, sessionName: "POS/2026/06/21-01", invoiceName: "B001-000430", client: "Diana Cáceres Wong", date: "2026-06-21 09:40:22", productName: "Amoxicilina 500mg (Caja x 100)", qty: 2, priceUnit: 480.00, subtotal: 960.00, paymentMethod: "Yape / Plin" },
+      { id: 8011, sessionName: "POS/2026/06/21-01", invoiceName: "B001-000431", client: "Marcos Sandoval Ruiz", date: "2026-06-21 11:15:10", productName: "Omeprazol 20mg (Caja x 30)", qty: 3, priceUnit: 220.00, subtotal: 660.00, paymentMethod: "Tarjeta de Crédito/Débito" },
+      { id: 8012, sessionName: "POS/2026/06/21-01", invoiceName: "B001-000432", client: "Clientes Varios", date: "2026-06-21 13:20:00", productName: "Ibuprofeno 400mg (Caja x 100)", qty: 2, priceUnit: 85.00, subtotal: 170.00, paymentMethod: "Efectivo" },
+      { id: 8013, sessionName: "POS/2026/06/21-02", invoiceName: "F001-000175", client: "Tecnologías del Pacífico S.A.C.", date: "2026-06-21 15:10:45", productName: "Amoxicilina 500mg (Caja x 100)", qty: 2, priceUnit: 480.00, subtotal: 960.00, paymentMethod: "Tarjeta de Crédito/Débito" },
+      { id: 8014, sessionName: "POS/2026/06/21-02", invoiceName: "B001-000433", client: "Gisela Ponce Ortiz", date: "2026-06-21 17:35:19", productName: "Omeprazol 20mg (Caja x 30)", qty: 2, priceUnit: 220.00, subtotal: 440.00, paymentMethod: "Yape / Plin" },
+      { id: 8015, sessionName: "POS/2026/06/21-02", invoiceName: "B001-000434", client: "Clientes Varios", date: "2026-06-21 19:12:00", productName: "Ibuprofeno 400mg (Caja x 100)", qty: 8, priceUnit: 85.00, subtotal: 680.00, paymentMethod: "Efectivo" }
     ]
   };
 
@@ -1066,7 +1087,7 @@ async function startServer() {
       const linesByOrderId: { [orderId: number]: any[] } = {};
 
       try {
-        console.log("Buscando órdenes pos.order...");
+        console.log("Buscando órdenes pos.order con filtro de compañía...");
         try {
           posOrders = await makeOdooCall(url, "/xmlrpc/2/object", "execute_kw", [
             db,
@@ -1102,6 +1123,28 @@ async function startServer() {
           ]);
         }
 
+        // FALLBACK: If query with company filter returned empty, try WITHOUT company_id filter
+        if (!Array.isArray(posOrders) || posOrders.length === 0) {
+          console.log("No se encontraron órdenes de POS para esta compañía. Reintentando consulta sin filtro de compañía...");
+          try {
+            posOrders = await makeOdooCall(url, "/xmlrpc/2/object", "execute_kw", [
+              db,
+              uidInt,
+              password,
+              "pos.order",
+              "search_read",
+              [[
+                ["state", "in", ["paid", "done", "invoiced"]]
+              ]],
+              { 
+                fields: ["id", "name", "date_order", "amount_total", "lines", "session_id", "partner_id"]
+              }
+            ]);
+          } catch (e2) {
+            console.log("Fallo total al buscar pos.order sin compañía:", e2);
+          }
+        }
+
         if (Array.isArray(posOrders) && posOrders.length > 0) {
           console.log(`Se encontraron ${posOrders.length} órdenes reales de pos.order.`);
           const orderIds = posOrders.map((o: any) => o.id);
@@ -1118,8 +1161,7 @@ async function startServer() {
                 ["order_id", "in", orderIds]
               ]],
               {
-                fields: ["id", "order_id", "product_id", "qty", "price_unit", "price_subtotal_incl", "price_subtotal"],
-                context: { allowed_company_ids: [companyIdInt] }
+                fields: ["id", "order_id", "product_id", "qty", "price_unit", "price_subtotal_incl", "price_subtotal"]
               }
             ]);
 
@@ -1137,15 +1179,15 @@ async function startServer() {
             console.log("Fallo al buscar pos.order.line:", lineErr);
           }
 
-          // Group by day format YYYY-MM-DD
+          // Group by day format YYYY-MM-DD using Peru local time
           const dailyGroups: { [date: string]: any[] } = {};
           posOrders.forEach((order: any) => {
-            const dateStr = order.date_order ? order.date_order.split(" ")[0] : new Date().toISOString().split("T")[0];
+            const dateStr = convertToPeruDateString(order.date_order);
             if (!dailyGroups[dateStr]) dailyGroups[dateStr] = [];
             dailyGroups[dateStr].push(order);
           });
 
-          posReports = Object.keys(dailyGroups).sort((a,b) => b.localeCompare(a)).slice(0, 5).map((date) => {
+          posReports = Object.keys(dailyGroups).sort((a,b) => b.localeCompare(a)).slice(0, 15).map((date) => {
             const groupOrders = dailyGroups[date];
             const totalSales = groupOrders.reduce((sum, o) => sum + (o.amount_total || 0), 0);
             
@@ -1223,7 +1265,7 @@ async function startServer() {
       // 5b. Fetch POS sessions from pos.session
       let posSessions: any[] = [];
       try {
-        console.log("Buscando sesiones de pos.session...");
+        console.log("Buscando sesiones de pos.session con filtro de compañía...");
         const rawSessions = await makeOdooCall(url, "/xmlrpc/2/object", "execute_kw", [
           db,
           uidInt,
@@ -1238,29 +1280,55 @@ async function startServer() {
             context: { allowed_company_ids: [companyIdInt] }
           }
         ]);
-
         if (Array.isArray(rawSessions)) {
-          console.log(`Se encontraron ${rawSessions.length} sesiones reales de pos.session.`);
-          posSessions = rawSessions.map((s: any) => {
-            const cashierName = s.user_id && Array.isArray(s.user_id) ? s.user_id[1] : "Cajero Odoo";
-            const stateLabel = s.state === "opened" ? "Abierto" : "Cerrado";
-            const totalRev = revenueBySessionId[s.id] || 0;
-            return {
-              id: s.id,
-              name: s.name || `Turno #${s.id}`,
-              cashier: cashierName,
-              openingDate: s.start_at ? s.start_at.replace("T", " ").split(".")[0] : "Sin fecha apertura",
-              closingDate: s.stop_at ? s.stop_at.replace("T", " ").split(".")[0] : "N/A",
-              openingBalance: 150.00,
-              closedAmount: s.state === "opened" ? 0 : (150.00 + totalRev),
-              totalRevenue: totalRev,
-              state: stateLabel,
-              config_id: s.config_id
-            };
-          });
+          posSessions = rawSessions;
         }
       } catch (err: any) {
-        console.log("Fallo al consultar pos.session:", err.message || err);
+        console.log("Fallo al consultar pos.session con compañía, reintentando sin compañía:", err.message || err);
+      }
+
+      // FALLBACK: If query with company filter returned empty or failed, try WITHOUT company_id filter
+      if (posSessions.length === 0) {
+        try {
+          console.log("Buscando sesiones de pos.session sin filtro de compañía...");
+          const rawSessionsNoCo = await makeOdooCall(url, "/xmlrpc/2/object", "execute_kw", [
+            db,
+            uidInt,
+            password,
+            "pos.session",
+            "search_read",
+            [[]],
+            { 
+              fields: ["id", "name", "state", "user_id", "config_id", "start_at", "stop_at"]
+            }
+          ]);
+          if (Array.isArray(rawSessionsNoCo)) {
+            posSessions = rawSessionsNoCo;
+          }
+        } catch (errNoCo: any) {
+          console.log("Fallo total al consultar pos.session:", errNoCo.message || errNoCo);
+        }
+      }
+
+      if (posSessions.length > 0) {
+        console.log(`Mapeando ${posSessions.length} sesiones reales de pos.session.`);
+        posSessions = posSessions.map((s: any) => {
+          const cashierName = s.user_id && Array.isArray(s.user_id) ? s.user_id[1] : "Cajero Odoo";
+          const stateLabel = s.state === "opened" ? "Abierto" : "Cerrado";
+          const totalRev = revenueBySessionId[s.id] || 0;
+          return {
+            id: s.id,
+            name: s.name || `Turno #${s.id}`,
+            cashier: cashierName,
+            openingDate: s.start_at ? s.start_at.replace("T", " ").split(".")[0] : "Sin fecha apertura",
+            closingDate: s.stop_at ? s.stop_at.replace("T", " ").split(".")[0] : "N/A",
+            openingBalance: 150.00,
+            closedAmount: s.state === "opened" ? 0 : (150.00 + totalRev),
+            totalRevenue: totalRev,
+            state: stateLabel,
+            config_id: s.config_id
+          };
+        });
       }
 
       // Clear and override local DB with exact fetched company data to prevent "ghost" data leaking from other companies
@@ -1363,6 +1431,19 @@ async function startServer() {
       }
       dbData.posSessions = sessions;
       dbData.posTransactions = txs;
+      
+      // Save the connected Odoo credentials persistently on the server
+      dbData.odooConnection = {
+        url,
+        db,
+        username,
+        password,
+        uid: parseInt(uid, 10),
+        companyId: parseInt(companyId, 10),
+        isConnected: true,
+        isDemoMode: false,
+        companyName: dbData.products.length > 0 ? "Empresa Odoo Sincronizada" : "GAORSYSTEM PERU"
+      };
 
       await saveDBAsync(dbData);
 
@@ -1375,7 +1456,8 @@ async function startServer() {
         posReports: dbData.posReports,
         posSessions: dbData.posSessions,
         posTransactions: dbData.posTransactions,
-        users: dbData.odooUsers
+        users: dbData.odooUsers,
+        odooConnection: dbData.odooConnection
       });
 
     } catch (error: any) {
@@ -1400,7 +1482,8 @@ async function startServer() {
       posReports: db.posReports,
       posSessions: db.posSessions,
       posTransactions: db.posTransactions,
-      odooUsers: db.odooUsers || []
+      odooUsers: db.odooUsers || [],
+      odooConnection: db.odooConnection || null
     });
   });
 
@@ -1417,6 +1500,8 @@ async function startServer() {
         (u: any) => u && typeof u.username === "string" && u.username.toLowerCase().trim() === username.toLowerCase().trim() && u.password === password
       ) : null;
 
+      const odooConnection = db.odooConnection || null;
+
       if (user) {
         return res.json({
           success: true,
@@ -1425,7 +1510,8 @@ async function startServer() {
             name: user.name,
             role: user.role,
             odoo_partner_id: user.odoo_partner_id
-          }
+          },
+          odooConnection
         });
       }
 
@@ -1437,7 +1523,8 @@ async function startServer() {
             username: "soporte@facturaclic.pe",
             name: "Luis Soporte (Admin)",
             role: "admin"
-          }
+          },
+          odooConnection
         });
       }
 
@@ -1449,7 +1536,8 @@ async function startServer() {
             username: "demo@gaorsystem.pe",
             name: "Demo User (Pruebas)",
             role: "user"
-          }
+          },
+          odooConnection
         });
       }
     } catch (e: any) {

@@ -81,14 +81,20 @@ export default function App() {
         const res = await fetch("/api/db/get-data");
         const data = await res.json();
         if (data.success) {
-          if (connection.isDemoMode) {
-            if (data.products && data.products.length > 0) setProducts(data.products);
-            if (data.orders) setOrders(data.orders);
-            if (data.orderLines) setOrderLines(data.orderLines);
-            if (data.expiryAlerts) setExpiryAlerts(data.expiryAlerts);
-            if (data.posReports) setPosReports(data.posReports);
-            if (data.posSessions) setPosSessions(data.posSessions);
-            if (data.posTransactions) setPosTransactions(data.posTransactions);
+          let currentConnection = connection;
+          if (data.odooConnection && data.odooConnection.isConnected) {
+            currentConnection = data.odooConnection;
+            setConnection(data.odooConnection);
+          }
+          
+          if (currentConnection.isDemoMode) {
+            setProducts(MOCK_PRODUCTS);
+            setOrders(MOCK_ORDERS);
+            setOrderLines(MOCK_ORDER_LINES);
+            setExpiryAlerts(MOCK_EXPIRY_ALERTS);
+            setPosReports(MOCK_POS_DAILY_REPORTS);
+            setPosSessions(MOCK_POS_SESSIONS);
+            setPosTransactions(MOCK_POS_TRANSACTIONS);
           } else {
             setProducts(data.products || []);
             setOrders(data.orders || []);
@@ -106,7 +112,7 @@ export default function App() {
       }
     };
     fetchDatabase();
-  }, [connection.isDemoMode]);
+  }, []);
 
   // Handle loading real data vs returning to demo mode
   useEffect(() => {
@@ -118,6 +124,23 @@ export default function App() {
       setPosReports(MOCK_POS_DAILY_REPORTS);
       setPosSessions(MOCK_POS_SESSIONS);
       setPosTransactions(MOCK_POS_TRANSACTIONS);
+    } else {
+      const reloadData = async () => {
+        try {
+          const res = await fetch("/api/db/get-data");
+          const data = await res.json();
+          if (data.success) {
+            setProducts(data.products || []);
+            setOrders(data.orders || []);
+            setOrderLines(data.orderLines || []);
+            setExpiryAlerts(data.expiryAlerts || []);
+            setPosReports(data.posReports || []);
+            setPosSessions(data.posSessions || []);
+            setPosTransactions(data.posTransactions || []);
+          }
+        } catch (e) {}
+      };
+      reloadData();
     }
   }, [connection.isDemoMode]);
 

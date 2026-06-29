@@ -43,21 +43,62 @@ export default function PosDailySum({
   // Section Tabs: "summary" (Daily charts), "sessions" (Turns/Cash closure), "transactions" (Detailed logs)
   const [activeSubTab, setActiveSubTab] = useState<"summary" | "sessions" | "transactions">("summary");
 
-  // State for Report Date Selector
-  const [selectedDate, setSelectedDate] = useState<string>(
-    reports.length > 0 ? reports[0].date : ""
-  );
+  // State for selected session details modal
+  const [selectedSessionName, setSelectedSessionName] = useState<string | null>(null);
 
-  // Sync selectedDate when reports list changes (e.g., when changing company)
+  // Filter state for reports by time range (Peru timezone)
+  const [timeRangeFilter, setTimeRangeFilter] = useState<"TODAY" | "WEEK" | "MONTH" | "ALL">("ALL");
+
+  const getPeruTodayDate = () => {
+    try {
+      const options = { timeZone: "America/Lima", year: "numeric", month: "2-digit", day: "2-digit" } as const;
+      const formatter = new Intl.DateTimeFormat("en-US", options);
+      const parts = formatter.formatToParts(new Date());
+      const year = parts.find(p => p.type === 'year')?.value;
+      const month = parts.find(p => p.type === 'month')?.value;
+      const day = parts.find(p => p.type === 'day')?.value;
+      return `${year}-${month}-${day}`;
+    } catch (e) {
+      return new Date().toISOString().split("T")[0];
+    }
+  };
+
+  const peruToday = getPeruTodayDate();
+
+  // Filtered reports based on date range selection
+  const filteredReports = reports.filter((r) => {
+    if (timeRangeFilter === "TODAY") {
+      return r.date === peruToday;
+    }
+    if (timeRangeFilter === "WEEK") {
+      const todayDate = new Date(peruToday);
+      const repDate = new Date(r.date);
+      const diffTime = Math.abs(todayDate.getTime() - repDate.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      return diffDays <= 7;
+    }
+    if (timeRangeFilter === "MONTH") {
+      return r.date.substring(0, 7) === peruToday.substring(0, 7);
+    }
+    return true; // ALL
+  });
+
+  // State for Report Date Selector
+  const [selectedDate, setSelectedDate] = useState<string>("");
+
+  // Sync selectedDate when reports list or range filter changes
   React.useEffect(() => {
-    if (reports.length > 0) {
-      if (!selectedDate || !reports.some((r) => r.date === selectedDate)) {
-        setSelectedDate(reports[0].date);
+    if (filteredReports.length > 0) {
+      const todayReport = filteredReports.find((r) => r.date === peruToday);
+      if (todayReport) {
+        setSelectedDate(todayReport.date);
+      } else if (!selectedDate || !filteredReports.some((r) => r.date === selectedDate)) {
+        setSelectedDate(filteredReports[0].date);
       }
     } else {
       setSelectedDate("");
     }
-  }, [reports]);
+  }, [reports, timeRangeFilter]);
 
   // States for sessions filtering
   const [sessionSearch, setSessionSearch] = useState<string>("");
@@ -67,7 +108,7 @@ export default function PosDailySum({
   const [txSearch, setTxSearch] = useState<string>("");
   const [txPaymentFilter, setTxPaymentFilter] = useState<string>("ALL");
 
-  const activeReport = reports.find((r) => r.date === selectedDate) || reports[0];
+  const activeReport = filteredReports.find((r) => r.date === selectedDate) || filteredReports[0];
 
   // Colors for charts
   const COLORS = ["#714B67", "#00A09D", "#9b5de5", "#f15bb5", "#fee440"];
@@ -301,28 +342,69 @@ export default function PosDailySum({
       {/* RENDER TAB 1: SUMMARY GRAPHICS */}
       {activeSubTab === "summary" && (
         <div className="space-y-6">
-          {/* Day selection segment */}
-          <div className="bg-white px-6 py-4 rounded-3xl border border-slate-150 flex flex-wrap items-center justify-between gap-4">
-            <span className="text-xs font-bold text-slate-500 flex items-center gap-1">
-              <Calendar className="h-4 w-4 text-[#714B67]" />
-              Seleccione una fecha de cierre para desglosar:
-            </span>
-            <div className="flex flex-wrap items-center gap-1.5 bg-slate-50 p-1 rounded-2xl border border-slate-200">
-              {reports.map((report) => (
+          {/* Time Range Selector */}
+          <div className="bg-white p-5 rounded-3xl border border-slate-150 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex flex-col">
+              <span className="text-xs font-extrabold text-slate-500 flex items-center gap-1.5">
+                <Filter className="h-4 w-4 text-[#714B67]" />
+                Rango de Fecha (Hora de Perú):
+              </span>
+              <span className="text-[11px] text-slate-400 mt-0.5">
+                Hoy en Perú es: <strong className="text-slate-600">{peruToday}</strong>
+              </span>
+            </div>
+            
+            <div className="flex flex-wrap items-center gap-1 bg-slate-50 p-1 rounded-2xl border border-slate-200">
+              {(["TODAY", "WEEK", "MONTH", "ALL"] as const).map((range) => (
                 <button
-                  key={report.date}
-                  onClick={() => setSelectedDate(report.date)}
+                  key={range}
+                  onClick={() => setTimeRangeFilter(range)}
                   className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
-                    selectedDate === report.date
+                    timeRangeFilter === range
                       ? "bg-white text-[#714B67] shadow-soft border border-slate-100"
-                      : "text-slate-600 hover:text-slate-900"
+                      : "text-slate-500 hover:text-slate-900 hover:bg-slate-100/50"
                   }`}
                 >
-                  {report.date}
+                  {range === "TODAY" ? "Hoy" : range === "WEEK" ? "7 Días" : range === "MONTH" ? "Este Mes" : "Todo"}
                 </button>
               ))}
             </div>
           </div>
+
+          {/* Day selection segment */}
+          {filteredReports.length > 0 ? (
+            <div className="bg-white px-6 py-4 rounded-3xl border border-slate-150 shadow-sm flex flex-wrap items-center justify-between gap-4">
+              <span className="text-xs font-bold text-slate-500 flex items-center gap-1">
+                <Calendar className="h-4 w-4 text-[#714B67]" />
+                Seleccione una fecha de cierre para desglosar:
+              </span>
+              <div className="flex flex-wrap items-center gap-1.5 bg-slate-50 p-1 rounded-2xl border border-slate-200">
+                {filteredReports.map((report) => (
+                  <button
+                    key={report.date}
+                    onClick={() => setSelectedDate(report.date)}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                      selectedDate === report.date
+                        ? "bg-white text-[#714B67] shadow-soft border border-slate-100"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    {report.date}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="bg-white p-6 rounded-3xl border border-slate-150 text-center text-slate-500 text-xs">
+              No se registran ventas para el filtro seleccionado aún. 
+              <button 
+                onClick={() => setTimeRangeFilter("ALL")} 
+                className="ml-2 font-bold text-[#714B67] underline hover:text-[#5c3c54]"
+              >
+                Ver todos los registros
+              </button>
+            </div>
+          )}
 
           {/* Core Daily metrics KPIs */}
           {!activeReport ? (
@@ -559,18 +641,23 @@ export default function PosDailySum({
                     <th scope="col" className="px-6 py-4 text-right">Recaudación Ventas</th>
                     <th scope="col" className="px-6 py-4 text-right">Arqueo Cierre Caja</th>
                     <th scope="col" className="px-6 py-4 text-center">Estado</th>
+                    <th scope="col" className="px-6 py-4 text-center">Detalle</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white text-xs sm:text-sm">
                   {filteredSessions.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-12 text-center text-slate-400 font-bold">
+                      <td colSpan={8} className="px-6 py-12 text-center text-slate-400 font-bold">
                         No se encontraron sesiones que coincidan con la búsqueda.
                       </td>
                     </tr>
                   ) : (
                     filteredSessions.map((sess) => (
-                      <tr key={sess.id} className="hover:bg-slate-50/75 transition-colors">
+                      <tr 
+                        key={sess.id} 
+                        className="hover:bg-slate-100/75 transition-colors cursor-pointer"
+                        onClick={() => setSelectedSessionName(sess.name)}
+                      >
                         <td className="px-6 py-4">
                           <div className="font-extrabold text-slate-900">{sess.name}</div>
                           {sess.config_id && (
@@ -619,6 +706,15 @@ export default function PosDailySum({
                               Abierto / Activo
                             </span>
                           )}
+                        </td>
+                        <td className="px-6 py-4 text-center" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={() => setSelectedSessionName(sess.name)}
+                            className="px-3 py-1.5 bg-[#714B67] hover:bg-[#5a3b52] text-white text-[11px] font-bold rounded-xl shadow-sm transition-all cursor-pointer flex items-center justify-center gap-1 mx-auto"
+                          >
+                            <FileText className="h-3 w-3" />
+                            <span>Ver Ventas</span>
+                          </button>
                         </td>
                       </tr>
                     ))
@@ -755,6 +851,136 @@ export default function PosDailySum({
           </div>
         </div>
       )}
+
+      {/* Session Sales Detail Modal */}
+      {selectedSessionName && (() => {
+        const session = posSessions.find(s => s.name === selectedSessionName);
+        const sessionTxs = posTransactions.filter(t => t.sessionName === selectedSessionName);
+        const totalSalesSum = sessionTxs.reduce((sum, t) => sum + t.subtotal, 0);
+
+        return (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 duration-200">
+              {/* Header */}
+              <div className="bg-[#714B67] text-white px-6 py-5 flex items-center justify-between shrink-0">
+                <div>
+                  <span className="px-2.5 py-0.5 text-[9px] font-extrabold uppercase tracking-widest rounded bg-white/20 text-white">
+                    Detalle de Turno POS
+                  </span>
+                  <h3 className="text-lg font-black mt-1">
+                    Sesión: {selectedSessionName}
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setSelectedSessionName(null)}
+                  className="p-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-all cursor-pointer"
+                >
+                  <XCircle className="h-6 w-6" />
+                </button>
+              </div>
+
+              {/* Session Meta Stats */}
+              <div className="bg-slate-50 border-b border-slate-200 p-6 grid grid-cols-1 md:grid-cols-4 gap-4 shrink-0">
+                <div className="p-4 bg-white rounded-2xl border border-slate-150">
+                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Cajero / Operador</span>
+                  <span className="text-sm font-extrabold text-slate-800 block mt-1 flex items-center gap-1">
+                    <Users className="h-4 w-4 text-[#00A09D]" />
+                    {session?.cashier || "N/A"}
+                  </span>
+                </div>
+                <div className="p-4 bg-white rounded-2xl border border-slate-150">
+                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Estado de Turno</span>
+                  <span className="text-sm font-extrabold text-slate-800 block mt-1">
+                    {session?.state === "Cerrado" ? (
+                      <span className="text-emerald-600 flex items-center gap-1 font-black">
+                        <CheckCircle className="h-4 w-4" /> Cerrado
+                      </span>
+                    ) : (
+                      <span className="text-sky-600 flex items-center gap-1 font-black">
+                        <Clock className="h-4 w-4 animate-pulse" /> Abierto / Activo
+                      </span>
+                    )}
+                  </span>
+                </div>
+                <div className="p-4 bg-white rounded-2xl border border-slate-150">
+                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Saldo Apertura</span>
+                  <span className="text-sm font-extrabold text-slate-800 block mt-1">
+                    S/. {session?.openingBalance.toFixed(2) || "0.00"}
+                  </span>
+                </div>
+                <div className="p-4 bg-emerald-50 border border-emerald-150 rounded-2xl">
+                  <span className="text-[10px] text-emerald-700 font-bold uppercase tracking-wider block">Total Ventas en Turno</span>
+                  <span className="text-sm font-black text-emerald-800 block mt-1">
+                    S/. {totalSalesSum.toFixed(2)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Transactions List */}
+              <div className="flex-1 overflow-y-auto p-6">
+                <h4 className="text-xs font-bold text-slate-600 mb-3 flex items-center gap-1.5">
+                  <FileText className="h-4 w-4 text-[#714B67]" />
+                  Comprobantes Emitidos y Detalle de Artículos ({sessionTxs.length}):
+                </h4>
+
+                {sessionTxs.length === 0 ? (
+                  <div className="text-center py-12 text-slate-400 font-bold">
+                    No se registran ventas u órdenes procesadas para este turno todavía.
+                  </div>
+                ) : (
+                  <div className="border border-slate-150 rounded-2xl overflow-hidden shadow-sm">
+                    <table className="min-w-full divide-y divide-slate-100">
+                      <thead className="bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                        <tr>
+                          <th className="px-4 py-3 text-left">Nro. Comprobante</th>
+                          <th className="px-4 py-3 text-left">Cliente</th>
+                          <th className="px-4 py-3 text-left">Fecha/Hora</th>
+                          <th className="px-4 py-3 text-left">Producto</th>
+                          <th className="px-4 py-3 text-right">Cant.</th>
+                          <th className="px-4 py-3 text-right">P. Unit</th>
+                          <th className="px-4 py-3 text-right">Total</th>
+                          <th className="px-4 py-3 text-center">Pago</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 bg-white text-xs">
+                        {sessionTxs.map((t, idx) => (
+                          <tr key={idx} className="hover:bg-slate-50/50">
+                            <td className="px-4 py-3 font-extrabold text-[#714B67]">{t.invoiceName}</td>
+                            <td className="px-4 py-3 font-bold text-slate-700">{t.client}</td>
+                            <td className="px-4 py-3 text-slate-500 font-medium">{t.date}</td>
+                            <td className="px-4 py-3 font-semibold text-slate-800">{t.productName}</td>
+                            <td className="px-4 py-3 text-right font-bold text-slate-600">{t.qty}</td>
+                            <td className="px-4 py-3 text-right text-slate-600">S/. {t.priceUnit.toFixed(2)}</td>
+                            <td className="px-4 py-3 text-right font-extrabold text-slate-900">S/. {t.subtotal.toFixed(2)}</td>
+                            <td className="px-4 py-3 text-center">
+                              <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-100">
+                                {t.paymentMethod}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="bg-slate-50 border-t border-slate-200 px-6 py-4 flex items-center justify-between shrink-0">
+                <span className="text-[11px] text-slate-400 font-bold">
+                  * Datos conciliados directamente con Odoo ERP
+                </span>
+                <button
+                  onClick={() => setSelectedSessionName(null)}
+                  className="px-5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                >
+                  Cerrar Detalle
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

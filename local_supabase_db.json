@@ -1,0 +1,1122 @@
+{
+  "users": [
+    {
+      "username": "demo@gaorsystem.pe",
+      "password": "demo",
+      "name": "Demo User",
+      "role": "user"
+    },
+    {
+      "username": "soporte@facturaclic.pe",
+      "password": "Luis2021.",
+      "name": "Luis Soporte",
+      "role": "admin"
+    }
+  ],
+  "rules": [
+    {
+      "productId": 101,
+      "type": "percentage",
+      "value": 3
+    },
+    {
+      "productId": 102,
+      "type": "percentage",
+      "value": 4
+    },
+    {
+      "productId": 103,
+      "type": "flat",
+      "value": 5
+    },
+    {
+      "productId": 105,
+      "type": "percentage",
+      "value": 5
+    },
+    {
+      "productId": 108,
+      "type": "flat",
+      "value": 10
+    }
+  ],
+  "products": [
+    {
+      "id": 101,
+      "display_name": "[FARM001] Paracetamol 500mg (Caja x 100)",
+      "default_code": "FARM001",
+      "list_price": 1250
+    },
+    {
+      "id": 102,
+      "display_name": "[FARM002] Amoxicilina 500mg (Caja x 100)",
+      "default_code": "FARM002",
+      "list_price": 480
+    },
+    {
+      "id": 103,
+      "display_name": "[FARM003] Ibuprofeno 400mg (Caja x 100)",
+      "default_code": "FARM003",
+      "list_price": 85
+    },
+    {
+      "id": 104,
+      "display_name": "[FARM004] Alcohol Antiséptico 70° 1L",
+      "default_code": "FARM004",
+      "list_price": 45
+    },
+    {
+      "id": 105,
+      "display_name": "[FARM005] Multivitamínico Supradyn x 30",
+      "default_code": "FARM005",
+      "list_price": 2500
+    },
+    {
+      "id": 106,
+      "display_name": "[FARM006] Mascarillas Quirúrgicas Celeste x 50",
+      "default_code": "FARM006",
+      "list_price": 150
+    },
+    {
+      "id": 107,
+      "display_name": "[FARM007] Omeprazol 20mg (Caja x 30)",
+      "default_code": "FARM007",
+      "list_price": 220
+    },
+    {
+      "id": 108,
+      "display_name": "[FARM008] Loratadina 10mg (Caja x 100)",
+      "default_code": "FARM008",
+      "list_price": 180
+    },
+    {
+      "id": 109,
+      "display_name": "[FARM009] Vitamina C Redoxon Efervescente",
+      "default_code": "FARM009",
+      "list_price": 120
+    }
+  ],
+  "orders": [
+    {
+      "id": 501,
+      "name": "SO001",
+      "date_order": "2026-06-01 10:15:30",
+      "user_id": [
+        111,
+        "Carlos Mendoza"
+      ],
+      "amount_total": 2980
+    },
+    {
+      "id": 502,
+      "name": "SO002",
+      "date_order": "2026-06-02 11:30:22",
+      "user_id": [
+        112,
+        "Sofía Altamirano"
+      ],
+      "amount_total": 5120
+    },
+    {
+      "id": 503,
+      "name": "SO003",
+      "date_order": "2026-06-03 14:45:10",
+      "user_id": [
+        113,
+        "Lucas Rivas"
+      ],
+      "amount_total": 1395
+    },
+    {
+      "id": 504,
+      "name": "SO004",
+      "date_order": "2026-06-04 09:05:45",
+      "user_id": [
+        114,
+        "Daniela Vargas"
+      ],
+      "amount_total": 2650
+    },
+    {
+      "id": 505,
+      "name": "SO005",
+      "date_order": "2026-06-05 16:20:00",
+      "user_id": [
+        111,
+        "Carlos Mendoza"
+      ],
+      "amount_total": 415
+    },
+    {
+      "id": 506,
+      "name": "SO006",
+      "date_order": "2026-06-08 11:10:05",
+      "user_id": [
+        112,
+        "Sofía Altamirano"
+      ],
+      "amount_total": 3670
+    },
+    {
+      "id": 507,
+      "name": "SO007",
+      "date_order": "2026-06-10 15:35:12",
+      "user_id": [
+        113,
+        "Lucas Rivas"
+      ],
+      "amount_total": 2500
+    },
+    {
+      "id": 508,
+      "name": "SO008",
+      "date_order": "2026-06-12 10:00:25",
+      "user_id": [
+        114,
+        "Daniela Vargas"
+      ],
+      "amount_total": 490
+    },
+    {
+      "id": 509,
+      "name": "SO009",
+      "date_order": "2026-06-15 12:40:19",
+      "user_id": [
+        111,
+        "Carlos Mendoza"
+      ],
+      "amount_total": 1515
+    },
+    {
+      "id": 510,
+      "name": "SO011",
+      "date_order": "2026-06-18 14:15:00",
+      "user_id": [
+        112,
+        "Sofía Altamirano"
+      ],
+      "amount_total": 5410
+    },
+    {
+      "id": 511,
+      "name": "SO012",
+      "date_order": "2026-06-20 09:20:45",
+      "user_id": [
+        113,
+        "Lucas Rivas"
+      ],
+      "amount_total": 1620
+    },
+    {
+      "id": 512,
+      "name": "SO013",
+      "date_order": "2026-06-21 16:50:30",
+      "user_id": [
+        114,
+        "Daniela Vargas"
+      ],
+      "amount_total": 7500
+    }
+  ],
+  "orderLines": [
+    {
+      "id": 2001,
+      "order_id": [
+        501,
+        "SO001"
+      ],
+      "product_id": [
+        101,
+        "Paracetamol 500mg (Caja x 100)"
+      ],
+      "product_uom_qty": 2,
+      "price_unit": 1250,
+      "price_subtotal": 2500
+    },
+    {
+      "id": 2002,
+      "order_id": [
+        501,
+        "SO001"
+      ],
+      "product_id": [
+        102,
+        "Amoxicilina 500mg (Caja x 100)"
+      ],
+      "product_uom_qty": 1,
+      "price_unit": 480,
+      "price_subtotal": 480
+    },
+    {
+      "id": 2003,
+      "order_id": [
+        502,
+        "SO002"
+      ],
+      "product_id": [
+        101,
+        "Paracetamol 500mg (Caja x 100)"
+      ],
+      "product_uom_qty": 3,
+      "price_unit": 1250,
+      "price_subtotal": 3750
+    },
+    {
+      "id": 2004,
+      "order_id": [
+        502,
+        "SO002"
+      ],
+      "product_id": [
+        102,
+        "Amoxicilina 500mg (Caja x 100)"
+      ],
+      "product_uom_qty": 2,
+      "price_unit": 480,
+      "price_subtotal": 960
+    },
+    {
+      "id": 2005,
+      "order_id": [
+        502,
+        "SO002"
+      ],
+      "product_id": [
+        103,
+        "Ibuprofeno 400mg (Caja x 100)"
+      ],
+      "product_uom_qty": 3,
+      "price_unit": 85,
+      "price_subtotal": 255
+    },
+    {
+      "id": 2006,
+      "order_id": [
+        502,
+        "SO002"
+      ],
+      "product_id": [
+        104,
+        "Alcohol Antiséptico 70° 1L"
+      ],
+      "product_uom_qty": 3,
+      "price_unit": 45,
+      "price_subtotal": 155
+    },
+    {
+      "id": 2007,
+      "order_id": [
+        503,
+        "SO003"
+      ],
+      "product_id": [
+        102,
+        "Amoxicilina 500mg (Caja x 100)"
+      ],
+      "product_uom_qty": 2,
+      "price_unit": 480,
+      "price_subtotal": 960
+    },
+    {
+      "id": 2008,
+      "order_id": [
+        503,
+        "SO003"
+      ],
+      "product_id": [
+        103,
+        "Ibuprofeno 400mg (Caja x 100)"
+      ],
+      "product_uom_qty": 3,
+      "price_unit": 85,
+      "price_subtotal": 255
+    },
+    {
+      "id": 2009,
+      "order_id": [
+        503,
+        "SO003"
+      ],
+      "product_id": [
+        108,
+        "Loratadina 10mg (Caja x 100)"
+      ],
+      "product_uom_qty": 1,
+      "price_unit": 180,
+      "price_subtotal": 180
+    },
+    {
+      "id": 2010,
+      "order_id": [
+        504,
+        "SO004"
+      ],
+      "product_id": [
+        101,
+        "Paracetamol 500mg (Caja x 100)"
+      ],
+      "product_uom_qty": 2,
+      "price_unit": 1250,
+      "price_subtotal": 2500
+    },
+    {
+      "id": 2011,
+      "order_id": [
+        504,
+        "SO004"
+      ],
+      "product_id": [
+        106,
+        "Mascarillas Quirúrgicas Celeste x 50"
+      ],
+      "product_uom_qty": 1,
+      "price_unit": 150,
+      "price_subtotal": 150
+    },
+    {
+      "id": 2012,
+      "order_id": [
+        505,
+        "SO005"
+      ],
+      "product_id": [
+        103,
+        "Ibuprofeno 400mg (Caja x 100)"
+      ],
+      "product_uom_qty": 2,
+      "price_unit": 85,
+      "price_subtotal": 170
+    },
+    {
+      "id": 2013,
+      "order_id": [
+        505,
+        "SO005"
+      ],
+      "product_id": [
+        104,
+        "Alcohol Antiséptico 70° 1L"
+      ],
+      "product_uom_qty": 3,
+      "price_unit": 45,
+      "price_subtotal": 135
+    },
+    {
+      "id": 2014,
+      "order_id": [
+        505,
+        "SO005"
+      ],
+      "product_id": [
+        109,
+        "Vitamina C Redoxon Efervescente"
+      ],
+      "product_uom_qty": 1,
+      "price_unit": 110,
+      "price_subtotal": 110
+    },
+    {
+      "id": 2015,
+      "order_id": [
+        506,
+        "SO006"
+      ],
+      "product_id": [
+        101,
+        "Paracetamol 500mg (Caja x 100)"
+      ],
+      "product_uom_qty": 2,
+      "price_unit": 1250,
+      "price_subtotal": 2500
+    },
+    {
+      "id": 2016,
+      "order_id": [
+        506,
+        "SO006"
+      ],
+      "product_id": [
+        102,
+        "Amoxicilina 500mg (Caja x 100)"
+      ],
+      "product_uom_qty": 2,
+      "price_unit": 480,
+      "price_subtotal": 960
+    },
+    {
+      "id": 2017,
+      "order_id": [
+        506,
+        "SO006"
+      ],
+      "product_id": [
+        107,
+        "Omeprazol 20mg (Caja x 30)"
+      ],
+      "product_uom_qty": 1,
+      "price_unit": 210,
+      "price_subtotal": 210
+    },
+    {
+      "id": 2018,
+      "order_id": [
+        507,
+        "SO007"
+      ],
+      "product_id": [
+        105,
+        "Multivitamínico Supradyn x 30"
+      ],
+      "product_uom_qty": 1,
+      "price_unit": 2500,
+      "price_subtotal": 2500
+    },
+    {
+      "id": 2019,
+      "order_id": [
+        508,
+        "SO008"
+      ],
+      "product_id": [
+        107,
+        "Omeprazol 20mg (Caja x 30)"
+      ],
+      "product_uom_qty": 2,
+      "price_unit": 220,
+      "price_subtotal": 440
+    },
+    {
+      "id": 2020,
+      "order_id": [
+        508,
+        "SO008"
+      ],
+      "product_id": [
+        106,
+        "Mascarillas Quirúrgicas Celeste x 50"
+      ],
+      "product_uom_qty": 1,
+      "price_unit": 50,
+      "price_subtotal": 50
+    },
+    {
+      "id": 2021,
+      "order_id": [
+        509,
+        "SO009"
+      ],
+      "product_id": [
+        101,
+        "Paracetamol 500mg (Caja x 100)"
+      ],
+      "product_uom_qty": 1,
+      "price_unit": 1250,
+      "price_subtotal": 1250
+    },
+    {
+      "id": 2022,
+      "order_id": [
+        509,
+        "SO009"
+      ],
+      "product_id": [
+        107,
+        "Omeprazol 20mg (Caja x 30)"
+      ],
+      "product_uom_qty": 1,
+      "price_unit": 220,
+      "price_subtotal": 220
+    },
+    {
+      "id": 2023,
+      "order_id": [
+        509,
+        "SO009"
+      ],
+      "product_id": [
+        104,
+        "Alcohol Antiséptico 70° 1L"
+      ],
+      "product_uom_qty": 1,
+      "price_unit": 45,
+      "price_subtotal": 45
+    },
+    {
+      "id": 2024,
+      "order_id": [
+        510,
+        "SO011"
+      ],
+      "product_id": [
+        105,
+        "Multivitamínico Supradyn x 30"
+      ],
+      "product_uom_qty": 2,
+      "price_unit": 2500,
+      "price_subtotal": 5000
+    },
+    {
+      "id": 2025,
+      "order_id": [
+        510,
+        "SO011"
+      ],
+      "product_id": [
+        108,
+        "Loratadina 10mg (Caja x 100)"
+      ],
+      "product_uom_qty": 2,
+      "price_unit": 180,
+      "price_subtotal": 360
+    },
+    {
+      "id": 2026,
+      "order_id": [
+        510,
+        "SO011"
+      ],
+      "product_id": [
+        106,
+        "Mascarillas Quirúrgicas Celeste x 50"
+      ],
+      "product_uom_qty": 1,
+      "price_unit": 50,
+      "price_subtotal": 50
+    },
+    {
+      "id": 2027,
+      "order_id": [
+        511,
+        "SO012"
+      ],
+      "product_id": [
+        101,
+        "Paracetamol 500mg (Caja x 100)"
+      ],
+      "product_uom_qty": 1,
+      "price_unit": 1250,
+      "price_subtotal": 1250
+    },
+    {
+      "id": 2028,
+      "order_id": [
+        511,
+        "SO012"
+      ],
+      "product_id": [
+        102,
+        "Amoxicilina 500mg (Caja x 100)"
+      ],
+      "product_uom_qty": 1,
+      "price_unit": 370,
+      "price_subtotal": 370
+    },
+    {
+      "id": 2029,
+      "order_id": [
+        512,
+        "SO013"
+      ],
+      "product_id": [
+        105,
+        "Multivitamínico Supradyn x 30"
+      ],
+      "product_uom_qty": 3,
+      "price_unit": 2500,
+      "price_subtotal": 7500
+    }
+  ],
+  "expiryAlerts": [
+    {
+      "id": 1,
+      "productName": "Paracetamol 500mg (Caja x 100)",
+      "defaultCode": "FARM001",
+      "lotNumber": "LOTE-LP-2026A",
+      "expiryDate": "2026-06-15",
+      "daysRemaining": -7,
+      "stockQty": 3,
+      "location": "Almacén Principal A-12",
+      "status": "expired"
+    },
+    {
+      "id": 2,
+      "productName": "Amoxicilina 500mg (Caja x 100)",
+      "defaultCode": "FARM002",
+      "lotNumber": "LOTE-MN-34Y2",
+      "expiryDate": "2026-07-15",
+      "daysRemaining": 23,
+      "stockQty": 8,
+      "location": "Almacén de Exhibición",
+      "status": "soon"
+    },
+    {
+      "id": 3,
+      "productName": "Ibuprofeno 400mg (Caja x 100)",
+      "defaultCode": "FARM003",
+      "lotNumber": "LOTE-KB-BLUE8",
+      "expiryDate": "2026-07-02",
+      "daysRemaining": 10,
+      "stockQty": 25,
+      "location": "Estante Pasadizo 4",
+      "status": "soon"
+    },
+    {
+      "id": 4,
+      "productName": "Alcohol Antiséptico 70° 1L",
+      "defaultCode": "FARM004",
+      "lotNumber": "LOTE-MS-SIL03",
+      "expiryDate": "2026-07-20",
+      "daysRemaining": 28,
+      "stockQty": 40,
+      "location": "Caja de Reserva B",
+      "status": "soon"
+    },
+    {
+      "id": 5,
+      "productName": "Omeprazol 20mg (Caja x 30)",
+      "defaultCode": "FARM007",
+      "lotNumber": "LOTE-AUD-NC09",
+      "expiryDate": "2026-07-05",
+      "daysRemaining": 13,
+      "stockQty": 15,
+      "location": "Almacén Principal A-15",
+      "status": "soon"
+    },
+    {
+      "id": 6,
+      "productName": "Loratadina 10mg (Caja x 100)",
+      "defaultCode": "FARM008",
+      "lotNumber": "LOTE-SSD-2TBX",
+      "expiryDate": "2026-09-12",
+      "daysRemaining": 82,
+      "stockQty": 12,
+      "location": "Estante Seguridad",
+      "status": "ok"
+    },
+    {
+      "id": 7,
+      "productName": "Vitamina C Redoxon Efervescente",
+      "defaultCode": "FARM009",
+      "lotNumber": "LOTE-CAM-4KPRO",
+      "expiryDate": "2026-10-30",
+      "daysRemaining": 130,
+      "stockQty": 20,
+      "location": "Almacén Principal B-2",
+      "status": "ok"
+    }
+  ],
+  "posReports": [
+    {
+      "date": "2026-06-22",
+      "totalSales": 4520,
+      "payments": [
+        {
+          "method": "Efectivo",
+          "amount": 1200
+        },
+        {
+          "method": "Yape / Plin",
+          "amount": 1850
+        },
+        {
+          "method": "Tarjeta de Crédito/Débito",
+          "amount": 1470
+        }
+      ],
+      "products": [
+        {
+          "id": 101,
+          "name": "Paracetamol 500mg (Caja x 100)",
+          "code": "FARM001",
+          "qty": 2,
+          "amount": 2500
+        },
+        {
+          "id": 102,
+          "name": "Amoxicilina 500mg (Caja x 100)",
+          "code": "FARM002",
+          "qty": 3,
+          "amount": 1440
+        },
+        {
+          "id": 103,
+          "name": "Ibuprofeno 400mg (Caja x 100)",
+          "code": "FARM003",
+          "qty": 5,
+          "amount": 425
+        },
+        {
+          "id": 104,
+          "name": "Alcohol Antiséptico 70° 1L",
+          "code": "FARM004",
+          "qty": 3,
+          "amount": 135
+        },
+        {
+          "id": 106,
+          "name": "Mascarillas Quirúrgicas Celeste x 50",
+          "code": "FARM006",
+          "qty": 1,
+          "amount": 20
+        }
+      ],
+      "documents": [
+        {
+          "type": "Boleta de Venta Electrónica",
+          "count": 12,
+          "amount": 1820
+        },
+        {
+          "type": "Factura Electrónica",
+          "count": 4,
+          "amount": 2700
+        }
+      ]
+    },
+    {
+      "date": "2026-06-21",
+      "totalSales": 3870,
+      "payments": [
+        {
+          "method": "Efectivo",
+          "amount": 850
+        },
+        {
+          "method": "Yape / Plin",
+          "amount": 1420
+        },
+        {
+          "method": "Tarjeta de Crédito/Débito",
+          "amount": 1600
+        }
+      ],
+      "products": [
+        {
+          "id": 102,
+          "name": "Amoxicilina 500mg (Caja x 100)",
+          "code": "FARM002",
+          "qty": 4,
+          "amount": 1920
+        },
+        {
+          "id": 107,
+          "name": "Omeprazol 20mg (Caja x 30)",
+          "code": "FARM007",
+          "qty": 5,
+          "amount": 1100
+        },
+        {
+          "id": 103,
+          "name": "Ibuprofeno 400mg (Caja x 100)",
+          "code": "FARM003",
+          "qty": 10,
+          "amount": 850
+        }
+      ],
+      "documents": [
+        {
+          "type": "Boleta de Venta Electrónica",
+          "count": 18,
+          "amount": 1250
+        },
+        {
+          "type": "Factura Electrónica",
+          "count": 3,
+          "amount": 2620
+        }
+      ]
+    },
+    {
+      "date": "2026-06-20",
+      "totalSales": 5410,
+      "payments": [
+        {
+          "method": "Efectivo",
+          "amount": 1510
+        },
+        {
+          "method": "Yape / Plin",
+          "amount": 1900
+        },
+        {
+          "method": "Tarjeta de Crédito/Débito",
+          "amount": 2000
+        }
+      ],
+      "products": [
+        {
+          "id": 105,
+          "name": "Multivitamínico Supradyn x 30",
+          "code": "FARM005",
+          "qty": 2,
+          "amount": 5000
+        },
+        {
+          "id": 108,
+          "name": "Loratadina 10mg (Caja x 100)",
+          "code": "FARM008",
+          "qty": 2,
+          "amount": 360
+        },
+        {
+          "id": 106,
+          "name": "Mascarillas Quirúrgicas Celeste x 50",
+          "code": "FARM006",
+          "qty": 1,
+          "amount": 50
+        }
+      ],
+      "documents": [
+        {
+          "type": "Boleta de Venta Electrónica",
+          "count": 8,
+          "amount": 410
+        },
+        {
+          "type": "Factura Electrónica",
+          "count": 2,
+          "amount": 5000
+        }
+      ]
+    }
+  ],
+  "posSessions": [
+    {
+      "id": 1,
+      "name": "POS/2026/06/22-01",
+      "cashier": "Ana Ramos (Turno Mañana)",
+      "openingDate": "2026-06-22 08:00:00",
+      "closingDate": "2026-06-22 14:00:00",
+      "openingBalance": 200,
+      "closedAmount": 2620,
+      "totalRevenue": 2420,
+      "state": "Cerrado"
+    },
+    {
+      "id": 2,
+      "name": "POS/2026/06/22-02",
+      "cashier": "Pedro Solano (Turno Tarde)",
+      "openingDate": "2026-06-22 14:00:00",
+      "closingDate": "2026-06-22 21:00:00",
+      "openingBalance": 200,
+      "closedAmount": 2300,
+      "totalRevenue": 2100,
+      "state": "Cerrado"
+    },
+    {
+      "id": 3,
+      "name": "POS/2026/06/21-01",
+      "cashier": "Ana Ramos (Turno Mañana)",
+      "openingDate": "2026-06-21 08:00:00",
+      "closingDate": "2026-06-21 14:00:00",
+      "openingBalance": 150,
+      "closedAmount": 1950,
+      "totalRevenue": 1800,
+      "state": "Cerrado"
+    },
+    {
+      "id": 4,
+      "name": "POS/2026/06/21-02",
+      "cashier": "Pedro Solano (Turno Tarde)",
+      "openingDate": "2026-06-21 14:00:00",
+      "closingDate": "2026-06-21 21:00:00",
+      "openingBalance": 150,
+      "closedAmount": 2220,
+      "totalRevenue": 2070,
+      "state": "Cerrado"
+    },
+    {
+      "id": 5,
+      "name": "POS/2026/06/23-01",
+      "cashier": "Elena Castro (Turno Mañana)",
+      "openingDate": "2026-06-23 08:00:00",
+      "closingDate": "N/A",
+      "openingBalance": 200,
+      "closedAmount": 0,
+      "totalRevenue": 1450,
+      "state": "Abierto"
+    }
+  ],
+  "posTransactions": [
+    {
+      "id": 8001,
+      "sessionName": "POS/2026/06/22-01",
+      "invoiceName": "B001-000452",
+      "client": "Carlos Villacorta Prado",
+      "date": "2026-06-22 09:15:22",
+      "productName": "Paracetamol 500mg (Caja x 100)",
+      "qty": 1,
+      "priceUnit": 1250,
+      "subtotal": 1250,
+      "paymentMethod": "Yape / Plin"
+    },
+    {
+      "id": 8002,
+      "sessionName": "POS/2026/06/22-01",
+      "invoiceName": "B001-000453",
+      "client": "María de la Cruz Rojas",
+      "date": "2026-06-22 10:24:05",
+      "productName": "Ibuprofeno 400mg (Caja x 100)",
+      "qty": 2,
+      "priceUnit": 85,
+      "subtotal": 170,
+      "paymentMethod": "Efectivo"
+    },
+    {
+      "id": 8003,
+      "sessionName": "POS/2026/06/22-01",
+      "invoiceName": "F001-000189",
+      "client": "Inversiones San José S.A.C.",
+      "date": "2026-06-22 11:42:18",
+      "productName": "Amoxicilina 500mg (Caja x 100)",
+      "qty": 2,
+      "priceUnit": 480,
+      "subtotal": 960,
+      "paymentMethod": "Tarjeta de Crédito/Débito"
+    },
+    {
+      "id": 8004,
+      "sessionName": "POS/2026/06/22-01",
+      "invoiceName": "B001-000454",
+      "client": "José Luis Neyra",
+      "date": "2026-06-22 13:10:50",
+      "productName": "Alcohol Antiséptico 70° 1L",
+      "qty": 1,
+      "priceUnit": 40,
+      "subtotal": 40,
+      "paymentMethod": "Yape / Plin"
+    },
+    {
+      "id": 8005,
+      "sessionName": "POS/2026/06/22-02",
+      "invoiceName": "B001-000455",
+      "client": "Alejandra Gómez Reyna",
+      "date": "2026-06-22 15:05:11",
+      "productName": "Paracetamol 500mg (Caja x 100)",
+      "qty": 1,
+      "priceUnit": 1250,
+      "subtotal": 1250,
+      "paymentMethod": "Tarjeta de Crédito/Débito"
+    },
+    {
+      "id": 8006,
+      "sessionName": "POS/2026/06/22-02",
+      "invoiceName": "B001-000456",
+      "client": "Piero Alarcón Sifuentes",
+      "date": "2026-06-22 16:40:55",
+      "productName": "Amoxicilina 500mg (Caja x 100)",
+      "qty": 1,
+      "priceUnit": 480,
+      "subtotal": 480,
+      "paymentMethod": "Yape / Plin"
+    },
+    {
+      "id": 8007,
+      "sessionName": "POS/2026/06/22-02",
+      "invoiceName": "B001-000457",
+      "client": "Clientes Varios",
+      "date": "2026-06-22 18:20:30",
+      "productName": "Ibuprofeno 400mg (Caja x 100)",
+      "qty": 3,
+      "priceUnit": 85,
+      "subtotal": 255,
+      "paymentMethod": "Efectivo"
+    },
+    {
+      "id": 8008,
+      "sessionName": "POS/2026/06/22-02",
+      "invoiceName": "B001-000458",
+      "client": "Raúl Benavente",
+      "date": "2026-06-22 19:45:12",
+      "productName": "Alcohol Antiséptico 70° 1L",
+      "qty": 2,
+      "priceUnit": 45,
+      "subtotal": 90,
+      "paymentMethod": "Efectivo"
+    },
+    {
+      "id": 8009,
+      "sessionName": "POS/2026/06/22-02",
+      "invoiceName": "B001-000459",
+      "client": "Clientes Varios",
+      "date": "2026-06-22 20:30:11",
+      "productName": "Mascarillas Quirúrgicas Celeste x 50",
+      "qty": 1,
+      "priceUnit": 25,
+      "subtotal": 25,
+      "paymentMethod": "Yape / Plin"
+    },
+    {
+      "id": 8010,
+      "sessionName": "POS/2026/06/21-01",
+      "invoiceName": "B001-000430",
+      "client": "Diana Cáceres Wong",
+      "date": "2026-06-21 09:40:22",
+      "productName": "Amoxicilina 500mg (Caja x 100)",
+      "qty": 2,
+      "priceUnit": 480,
+      "subtotal": 960,
+      "paymentMethod": "Yape / Plin"
+    },
+    {
+      "id": 8011,
+      "sessionName": "POS/2026/06/21-01",
+      "invoiceName": "B001-000431",
+      "client": "Marcos Sandoval Ruiz",
+      "date": "2026-06-21 11:15:10",
+      "productName": "Omeprazol 20mg (Caja x 30)",
+      "qty": 3,
+      "priceUnit": 220,
+      "subtotal": 660,
+      "paymentMethod": "Tarjeta de Crédito/Débito"
+    },
+    {
+      "id": 8012,
+      "sessionName": "POS/2026/06/21-01",
+      "invoiceName": "B001-000432",
+      "client": "Clientes Varios",
+      "date": "2026-06-21 13:20:00",
+      "productName": "Ibuprofeno 400mg (Caja x 100)",
+      "qty": 2,
+      "priceUnit": 85,
+      "subtotal": 170,
+      "paymentMethod": "Efectivo"
+    },
+    {
+      "id": 8013,
+      "sessionName": "POS/2026/06/21-02",
+      "invoiceName": "F001-000175",
+      "client": "Tecnologías del Pacífico S.A.C.",
+      "date": "2026-06-21 15:10:45",
+      "productName": "Amoxicilina 500mg (Caja x 100)",
+      "qty": 2,
+      "priceUnit": 480,
+      "subtotal": 960,
+      "paymentMethod": "Tarjeta de Crédito/Débito"
+    },
+    {
+      "id": 8014,
+      "sessionName": "POS/2026/06/21-02",
+      "invoiceName": "B001-000433",
+      "client": "Gisela Ponce Ortiz",
+      "date": "2026-06-21 17:35:19",
+      "productName": "Omeprazol 20mg (Caja x 30)",
+      "qty": 2,
+      "priceUnit": 220,
+      "subtotal": 440,
+      "paymentMethod": "Yape / Plin"
+    },
+    {
+      "id": 8015,
+      "sessionName": "POS/2026/06/21-02",
+      "invoiceName": "B001-000434",
+      "client": "Clientes Varios",
+      "date": "2026-06-21 19:12:00",
+      "productName": "Ibuprofeno 400mg (Caja x 100)",
+      "qty": 8,
+      "priceUnit": 85,
+      "subtotal": 680,
+      "paymentMethod": "Efectivo"
+    }
+  ]
+}

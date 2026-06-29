@@ -45,15 +45,19 @@ export default function OdooPortalLogin({
 
       if (response.ok && data.success) {
         const isAdmin = data.user.role === "admin";
-        onChangeConnection({
-          ...connection,
-          username: isAdmin ? (connection.username || "") : username.trim(),
-          password: isAdmin ? (connection.password || "") : password.trim(),
-          isConnected: isAdmin ? connection.isConnected : false,
-          isDemoMode: !isAdmin, // demo mode for non-admin tests
-          companyId: isAdmin ? (connection.companyId || 0) : 1,
-          companyName: isAdmin ? (connection.companyName || "Configurar Conexión ERP") : "GAORSYSTEM PERU"
-        });
+        if (data.odooConnection && data.odooConnection.isConnected) {
+          onChangeConnection(data.odooConnection);
+        } else {
+          onChangeConnection({
+            ...connection,
+            username: isAdmin ? (connection.username || "") : username.trim(),
+            password: isAdmin ? (connection.password || "") : password.trim(),
+            isConnected: false,
+            isDemoMode: true, // fallback to demo mode if no Odoo connection configured yet
+            companyId: isAdmin ? (connection.companyId || 0) : 1,
+            companyName: "GAORSYSTEM PERU"
+          });
+        }
         onLoginSuccess();
       } else {
         setError(data.message || "Credenciales de acceso incorrectas.");
