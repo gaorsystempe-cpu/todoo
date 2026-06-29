@@ -17,8 +17,8 @@ export default function SalespersonDetailsModal({
 
   const [viewTab, setViewTab] = useState<"transacciones" | "consolidado">("transacciones");
 
-  const soldProductsArray = Object.values(salesperson.soldProducts).filter((p) => p.commission > 0);
-  const transactionsArray = (salesperson.commissionLines || []).filter((t) => t.commission > 0);
+  const soldProductsArray = Object.values(salesperson.soldProducts || {}).filter((p) => p && p.commission > 0);
+  const transactionsArray = (salesperson.commissionLines || []).filter((t) => t && t.commission > 0);
 
   const handleExportIndividual = () => {
     let rows: any[] = [];
@@ -26,23 +26,23 @@ export default function SalespersonDetailsModal({
 
     if (viewTab === "transacciones") {
       rows = transactionsArray.map((t) => ({
-        "Fecha": t.date,
-        "Orden de Venta": t.orderName,
-        "Producto": t.productName,
-        "Cantidad": t.qtySold,
-        "Ventas (S/.)": parseFloat(t.revenue.toFixed(2)),
+        "Fecha": t.date || "",
+        "Orden de Venta": t.orderName || "",
+        "Producto": t.productName || "",
+        "Cantidad": t.qtySold || 0,
+        "Ventas (S/.)": parseFloat((t.revenue || 0).toFixed(2)),
         "Tipo de Regla": t.ruleType === "percentage" ? "Porcentual" : "Fijo",
-        "Valor de Regla": t.ruleValue,
-        "Comisión (S/.)": parseFloat(t.commission.toFixed(2))
+        "Valor de Regla": t.ruleValue || 0,
+        "Comisión (S/.)": parseFloat((t.commission || 0).toFixed(2))
       }));
     } else {
       rows = soldProductsArray.map((p) => ({
-        "Producto": p.name,
-        "Cantidad Vendida": p.qtySold,
-        "Monto Ventas (S/.)": parseFloat(p.revenue.toFixed(2)),
+        "Producto": p.name || "",
+        "Cantidad Vendida": p.qtySold || 0,
+        "Monto Ventas (S/.)": parseFloat((p.revenue || 0).toFixed(2)),
         "Tipo de Regla": p.ruleType === "percentage" ? "Porcentual" : "Fijo",
-        "Valor de Regla": p.ruleValue,
-        "Comisión Calculada (S/.)": parseFloat(p.commission.toFixed(2))
+        "Valor de Regla": p.ruleValue || 0,
+        "Comisión Calculada (S/.)": parseFloat((p.commission || 0).toFixed(2))
       }));
     }
 
@@ -95,18 +95,18 @@ export default function SalespersonDetailsModal({
         <div className="bg-slate-50 border-b border-slate-200 px-6 py-4 grid grid-cols-3 gap-6 text-sm">
           <div>
             <span className="text-slate-400 font-semibold block uppercase text-[10px]">Total Órdenes</span>
-            <span className="text-base font-bold text-slate-700">{salesperson.totalSalesCount}</span>
+            <span className="text-base font-bold text-slate-700">{salesperson.totalSalesCount || 0}</span>
           </div>
           <div>
             <span className="text-slate-400 font-semibold block uppercase text-[10px]">Ingresos Totales</span>
             <span className="text-base font-bold text-slate-700 font-mono">
-              S/. {salesperson.totalRevenue.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              S/. {(salesperson.totalRevenue || 0).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
           </div>
           <div>
             <span className="text-slate-400 font-semibold block uppercase text-[10px]">Comisión Acumulada</span>
             <span className="text-base font-bold text-[#00A09D] font-mono">
-              S/. {salesperson.totalCommission.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              S/. {(salesperson.totalCommission || 0).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
           </div>
         </div>

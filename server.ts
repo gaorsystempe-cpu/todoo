@@ -366,48 +366,60 @@ async function saveDBAsync(data: any): Promise<void> {
     };
 
     const syncTable = async (tableName: string, rows: any[]) => {
-      if (!supabase || !Array.isArray(rows)) return;
-      if (rows.length === 0) {
-        try {
-          const { error } = await supabase.from(tableName).delete().neq("id", -9999);
-          checkErrorAndDisableIfNeeded(error, `borrado tabla ${tableName}`);
-        } catch (e: any) {
-          console.warn(`[Supabase] Error al borrar en tabla ${tableName}:`, e.message || e);
+      try {
+        if (!supabase || !Array.isArray(rows)) return;
+        if (rows.length === 0) {
+          try {
+            const { error } = await supabase.from(tableName).delete().neq("id", -9999);
+            checkErrorAndDisableIfNeeded(error, `borrado tabla ${tableName}`);
+          } catch (e: any) {
+            console.warn(`[Supabase] Error al borrar en tabla ${tableName}:`, e.message || e);
+          }
+          return;
         }
-        return;
+        const { error } = await supabase.from(tableName).upsert(rows);
+        checkErrorAndDisableIfNeeded(error, `tabla ${tableName}`);
+      } catch (err: any) {
+        console.error(`[Supabase] Error crítico al sincronizar tabla ${tableName}:`, err?.message || err);
       }
-      const { error } = await supabase.from(tableName).upsert(rows);
-      checkErrorAndDisableIfNeeded(error, `tabla ${tableName}`);
     };
 
     const syncRules = async (rows: any[]) => {
-      if (!supabase || !Array.isArray(rows)) return;
-      if (rows.length === 0) {
-        try {
-          const { error } = await supabase.from("commission_rules").delete().neq("productId", -9999);
-          checkErrorAndDisableIfNeeded(error, "borrado tabla commission_rules");
-        } catch (e: any) {
-          console.warn("[Supabase] Error al borrar en tabla commission_rules:", e.message || e);
+      try {
+        if (!supabase || !Array.isArray(rows)) return;
+        if (rows.length === 0) {
+          try {
+            const { error } = await supabase.from("commission_rules").delete().neq("productId", -9999);
+            checkErrorAndDisableIfNeeded(error, "borrado tabla commission_rules");
+          } catch (e: any) {
+            console.warn("[Supabase] Error al borrar en tabla commission_rules:", e.message || e);
+          }
+          return;
         }
-        return;
+        const { error } = await supabase.from("commission_rules").upsert(rows);
+        checkErrorAndDisableIfNeeded(error, "tabla commission_rules");
+      } catch (err: any) {
+        console.error("[Supabase] Error crítico al sincronizar commission_rules:", err?.message || err);
       }
-      const { error } = await supabase.from("commission_rules").upsert(rows);
-      checkErrorAndDisableIfNeeded(error, "tabla commission_rules");
     };
 
     const syncPosReports = async (rows: any[]) => {
-      if (!supabase || !Array.isArray(rows)) return;
-      if (rows.length === 0) {
-        try {
-          const { error } = await supabase.from("cached_pos_daily_reports").delete().neq("date", "1900-01-01");
-          checkErrorAndDisableIfNeeded(error, "borrado tabla cached_pos_daily_reports");
-        } catch (e: any) {
-          console.warn("[Supabase] Error al borrar en tabla cached_pos_daily_reports:", e.message || e);
+      try {
+        if (!supabase || !Array.isArray(rows)) return;
+        if (rows.length === 0) {
+          try {
+            const { error } = await supabase.from("cached_pos_daily_reports").delete().neq("date", "1900-01-01");
+            checkErrorAndDisableIfNeeded(error, "borrado tabla cached_pos_daily_reports");
+          } catch (e: any) {
+            console.warn("[Supabase] Error al borrar en tabla cached_pos_daily_reports:", e.message || e);
+          }
+          return;
         }
-        return;
+        const { error } = await supabase.from("cached_pos_daily_reports").upsert(rows);
+        checkErrorAndDisableIfNeeded(error, "tabla cached_pos_daily_reports");
+      } catch (err: any) {
+        console.error("[Supabase] Error crítico al sincronizar cached_pos_daily_reports:", err?.message || err);
       }
-      const { error } = await supabase.from("cached_pos_daily_reports").upsert(rows);
-      checkErrorAndDisableIfNeeded(error, "tabla cached_pos_daily_reports");
     };
 
     const syncUsers = async (rows: any[]) => {

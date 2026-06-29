@@ -13,35 +13,54 @@ export function calculateCommissionReport(
   let totalCompanyRevenue = 0;
   let totalCompanyCommission = 0;
 
+  const safeOrders = Array.isArray(orders) ? orders : [];
+  const safeOrderLines = Array.isArray(orderLines) ? orderLines : [];
+  const safeRules = Array.isArray(rules) ? rules : [];
+
   // Make a fast rules lookup map
   const rulesMap: { [productId: number]: CommissionRule } = {};
-  rules.forEach((rule) => {
-    rulesMap[rule.productId] = rule;
+  safeRules.forEach((rule) => {
+    if (rule && typeof rule.productId === "number") {
+      rulesMap[rule.productId] = rule;
+    }
   });
 
   // Make a fast order lookup map to get salesperson (user_id) for each line
   const ordersMap: { [orderId: number]: OdooSaleOrder } = {};
-  orders.forEach((order) => {
-    ordersMap[order.id] = order;
+  safeOrders.forEach((order) => {
+    if (order && order.id) {
+      ordersMap[order.id] = order;
+    }
   });
 
   // Calculate commissions line by line
-  orderLines.forEach((line) => {
+  safeOrderLines.forEach((line) => {
+    if (!line) return;
+    
     const orderIdVal = Array.isArray(line.order_id) ? line.order_id[0] : line.order_id;
-    const parentOrder = ordersMap[orderIdVal];
+    if (orderIdVal === undefined || orderIdVal === null || (orderIdVal as any) === false) return;
+    
+    const parentOrder = ordersMap[orderIdVal as number];
     if (!parentOrder) return; // Skip lines whose parent orders aren't in active company scope
 
     const userIdTuple = parentOrder.user_id;
-    if (!userIdTuple || !Array.isArray(userIdTuple)) return; // Skip if no salesperson assigned
+    if (!userIdTuple || !Array.isArray(userIdTuple) || userIdTuple.length < 2) return; // Skip if no salesperson assigned
 
-    const [salespersonId, salespersonName] = userIdTuple;
+    const salespersonId = userIdTuple[0];
+    const salespersonName = userIdTuple[1] || `Vendedor ${salespersonId}`;
+    if (typeof salespersonId !== "number") return;
+
     const productIdValue = Array.isArray(line.product_id) ? line.product_id[0] : line.product_id;
+    if (productIdValue === undefined || productIdValue === null || (productIdValue as any) === false) return;
+    
     const productName = Array.isArray(line.product_id) ? line.product_id[1] : `ID ${productIdValue}`;
+    const safeProductName = typeof productName === "string" ? productName : `ID ${productIdValue}`;
 
     // Calculate commission for this product line
-    const qty = line.product_uom_qty || 0;
-    const subtotal = line.price_subtotal || (line.price_unit * qty) || 0;
-    const rule = rulesMap[productIdValue];
+    const qty = typeof line.product_uom_qty === "number" ? line.product_uom_qty : parseFloat(line.product_uom_qty as any) || 0;
+    const priceUnit = typeof line.price_unit === "number" ? line.price_unit : parseFloat(line.price_unit as any) || 0;
+    const subtotal = typeof line.price_subtotal === "number" ? line.price_subtotal : parseFloat(line.price_subtotal as any) || (priceUnit * qty) || 0;
+    const rule = rulesMap[productIdValue as number];
 
     if (!rule) return; // SKIP products that do NOT have commission assigned!
 
@@ -61,13 +80,13 @@ export function calculateCommissionReport(
     const salesperson = summariesMap[salespersonId];
 
     let lineCommission = 0;
-    const ruleType = rule.type;
-    const ruleValue = rule.value;
+    const ruleType = rule.type || "percentage";
+    const ruleValue = typeof rule.value === "number" ? rule.value : parseFloat(rule.value as any) || 0;
     
-    if (rule.type === "percentage") {
-      lineCommission = subtotal * (rule.value / 100);
+    if (ruleType === "percentage") {
+      lineCommission = subtotal * (ruleValue / 100);
     } else {
-      lineCommission = qty * rule.value;
+      lineCommission = qty * ruleValue;
     }
 
     // Accumulate salesperson level stats
@@ -76,13 +95,16 @@ export function calculateCommissionReport(
     totalCompanyRevenue += subtotal;
     totalCompanyCommission += lineCommission;
 
+    const parentOrderDate = parentOrder.date_order || "";
+    const parentOrderName = parentOrder.name || `Pedido #${parentOrder.id}`;
+
     // Append detailed commission line
     salesperson.commissionLines.push({
-      orderId: orderIdVal,
-      orderName: parentOrder.name,
-      date: parentOrder.date_order,
-      productId: productIdValue,
-      productName: productName,
+      orderId: orderIdVal as number,
+      orderName: parentOrderName,
+      date: parentOrderDate,
+      productId: productIdValue as number,
+      productName: safeProductName,
       qtySold: qty,
       revenue: subtotal,
       commission: lineCommission,
@@ -91,10 +113,11 @@ export function calculateCommissionReport(
     });
 
     // Accumulate product line item under salesperson breakdown
-    if (!salesperson.soldProducts[productIdValue]) {
-      salesperson.soldProducts[productIdValue] = {
-        id: productIdValue,
-        name: productName,
+    const pidNum = productIdValue as number;
+    if (!salesperson.soldProducts[pidNum]) {
+      salesperson.soldProducts[pidNum] = {
+        id: pidNum,
+        name: safeProductName,
         qtySold: 0,
         revenue: 0,
         commission: 0,
@@ -103,7 +126,7 @@ export function calculateCommissionReport(
       };
     }
 
-    const prodDetail = salesperson.soldProducts[productIdValue];
+    const prodDetail = salesperson.soldProducts[pidNum];
     prodDetail.qtySold += qty;
     prodDetail.revenue += subtotal;
     prodDetail.commission += lineCommission;
@@ -112,14 +135,17 @@ export function calculateCommissionReport(
   // Compute how many distinct orders each salesperson touched
   // Group orders by user_id
   const ordersCountMap: { [userId: number]: Set<number> } = {};
-  orders.forEach((order) => {
+  safeOrders.forEach((order) => {
+    if (!order) return;
     const userIdTuple = order.user_id;
-    if (userIdTuple && Array.isArray(userIdTuple)) {
+    if (userIdTuple && Array.isArray(userIdTuple) && userIdTuple.length >= 1) {
       const uId = userIdTuple[0];
-      if (!ordersCountMap[uId]) {
-        ordersCountMap[uId] = new Set();
+      if (typeof uId === "number") {
+        if (!ordersCountMap[uId]) {
+          ordersCountMap[uId] = new Set();
+        }
+        ordersCountMap[uId].add(order.id);
       }
-      ordersCountMap[uId].add(order.id);
     }
   });
 

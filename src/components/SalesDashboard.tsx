@@ -29,25 +29,33 @@ export default function SalesDashboard({
   const [searchTerm, setSearchTerm] = useState("");
   const [subTab, setSubTab] = useState<"reporte" | "tarifas">("reporte");
 
+  const safeOrders = Array.isArray(orders) ? orders : [];
+  const safeOrderLines = Array.isArray(orderLines) ? orderLines : [];
+  const safeProducts = Array.isArray(products) ? products : [];
+  const safeRules = Array.isArray(rules) ? rules : [];
+
   const { summaries, totalCompanyRevenue, totalCompanyCommission } = useMemo(() => {
-    return calculateCommissionReport(orders, orderLines, rules);
-  }, [orders, orderLines, rules]);
+    return calculateCommissionReport(safeOrders, safeOrderLines, safeRules);
+  }, [safeOrders, safeOrderLines, safeRules]);
 
   // Filter summaries based on salesperson name search
   const filteredSummaries = useMemo(() => {
-    return summaries.filter((item) =>
-      item.name.toLowerCase().includes(searchTerm.toLowerCase())
+    return (summaries || []).filter((item) =>
+      item && item.name && item.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
   }, [summaries, searchTerm]);
 
   // Chart data preparing: commission per salesperson
   const chartData = useMemo(() => {
-    return summaries.map((s) => ({
-      name: s.name.split(" ")[0] || s.name, // First name for mobile/short spaces
-      fullName: s.name,
-      Ventas: parseFloat(s.totalRevenue.toFixed(2)),
-      Comision: parseFloat(s.totalCommission.toFixed(2))
-    }));
+    return (summaries || []).map((s) => {
+      const nameVal = s && s.name ? s.name : "Vendedor";
+      return {
+        name: nameVal.split(" ")[0] || nameVal, // First name for mobile/short spaces
+        fullName: nameVal,
+        Ventas: parseFloat((s?.totalRevenue || 0).toFixed(2)),
+        Comision: parseFloat((s?.totalCommission || 0).toFixed(2))
+      };
+    });
   }, [summaries]);
 
   // Chart colors
@@ -408,8 +416,8 @@ export default function SalesDashboard({
             transition={{ duration: 0.15 }}
           >
             <CommissionConfigurator
-              products={products}
-              rules={rules}
+              products={safeProducts}
+              rules={safeRules}
               onSaveRule={onSaveRule}
               onRemoveRule={onRemoveRule}
             />

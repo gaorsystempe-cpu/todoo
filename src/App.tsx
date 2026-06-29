@@ -133,30 +133,30 @@ export default function App() {
     loadedTxs?: PosTransactionDetail[],
     loadedUsers?: any[]
   ) => {
-    setProducts(loadedProducts);
-    setOrders(loadedOrders);
-    setOrderLines(loadedLines);
-    if (loadedExpiry && loadedExpiry.length > 0) {
+    setProducts(Array.isArray(loadedProducts) ? loadedProducts : []);
+    setOrders(Array.isArray(loadedOrders) ? loadedOrders : []);
+    setOrderLines(Array.isArray(loadedLines) ? loadedLines : []);
+    if (loadedExpiry && Array.isArray(loadedExpiry) && loadedExpiry.length > 0) {
       setExpiryAlerts(loadedExpiry);
     } else {
       setExpiryAlerts(MOCK_EXPIRY_ALERTS);
     }
-    if (loadedPos && loadedPos.length > 0) {
+    if (loadedPos && Array.isArray(loadedPos) && loadedPos.length > 0) {
       setPosReports(loadedPos);
     } else {
       setPosReports(MOCK_POS_DAILY_REPORTS);
     }
-    if (loadedSessions && loadedSessions.length > 0) {
+    if (loadedSessions && Array.isArray(loadedSessions) && loadedSessions.length > 0) {
       setPosSessions(loadedSessions);
     } else {
       setPosSessions(MOCK_POS_SESSIONS);
     }
-    if (loadedTxs && loadedTxs.length > 0) {
+    if (loadedTxs && Array.isArray(loadedTxs) && loadedTxs.length > 0) {
       setPosTransactions(loadedTxs);
     } else {
       setPosTransactions(MOCK_POS_TRANSACTIONS);
     }
-    if (loadedUsers) {
+    if (loadedUsers && Array.isArray(loadedUsers)) {
       setOdooUsers(loadedUsers);
     } else {
       setOdooUsers([]);

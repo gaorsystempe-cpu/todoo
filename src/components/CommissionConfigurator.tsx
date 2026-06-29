@@ -24,15 +24,22 @@ export default function CommissionConfigurator({
     value: number;
   } | null>(null);
 
+  const safeProducts = Array.isArray(products) ? products : [];
+  const safeRules = Array.isArray(rules) ? rules : [];
+
   // Helper to find a rule assigned to a product
   const getRuleForProduct = (productId: number) => {
-    return rules.find((r) => r.productId === productId);
+    if (!productId) return undefined;
+    return safeRules.find((r) => r && r.productId === productId);
   };
 
   // Filter products by search term and whether they have configured commissions
-  const filteredProducts = products.filter((product) => {
-    const nameMatch = product.display_name.toLowerCase().includes(searchTerm.toLowerCase());
-    const codeMatch = product.default_code?.toLowerCase().includes(searchTerm.toLowerCase());
+  const filteredProducts = safeProducts.filter((product) => {
+    if (!product || !product.id) return false;
+    const displayName = product.display_name || "";
+    const defaultCode = product.default_code || "";
+    const nameMatch = displayName.toLowerCase().includes(searchTerm.toLowerCase());
+    const codeMatch = defaultCode.toLowerCase().includes(searchTerm.toLowerCase());
     const rule = getRuleForProduct(product.id);
     
     const matchesSearch = nameMatch || codeMatch;
@@ -50,11 +57,12 @@ export default function CommissionConfigurator({
   };
 
   const startEditing = (product: OdooProduct) => {
+    if (!product || !product.id) return;
     const existing = getRuleForProduct(product.id);
     setEditingRule({
       productId: product.id,
       type: existing?.type || "percentage",
-      value: existing?.value || 3
+      value: typeof existing?.value === "number" ? existing.value : 3
     });
   };
 
@@ -90,7 +98,7 @@ export default function CommissionConfigurator({
                 : "text-slate-600 hover:text-slate-900"
             }`}
           >
-            Todos ({products.length})
+            Todos ({safeProducts.length})
           </button>
           <button
             onClick={() => setFilterType("configured")}
@@ -100,7 +108,7 @@ export default function CommissionConfigurator({
                 : "text-slate-600 hover:text-slate-900"
             }`}
           >
-            Configurados ({rules.length})
+            Configurados ({safeRules.length})
           </button>
         </div>
       </div>
@@ -139,7 +147,7 @@ export default function CommissionConfigurator({
                   <h4 className="text-sm font-semibold text-slate-700">
                     Definir Comisión para:{" "}
                     <span className="text-[#714B67]">
-                      {products.find((p) => p.id === editingRule.productId)?.display_name}
+                      {safeProducts.find((p) => p && p.id === editingRule.productId)?.display_name || "Producto seleccionado"}
                     </span>
                   </h4>
                   <p className="text-xs text-slate-500 mt-1">
@@ -260,7 +268,12 @@ export default function CommissionConfigurator({
                         {product.display_name}
                       </td>
                       <td className="py-4 px-4 text-right text-slate-600 font-mono text-xs">
-                        {product.list_price ? `S/. ${product.list_price.toFixed(2)}` : "S/. 0.00"}
+                        {typeof product.list_price === "number"
+                          ? `S/. ${product.list_price.toFixed(2)}`
+                          : product.list_price !== undefined && product.list_price !== null
+                            ? `S/. ${parseFloat(product.list_price as any || "0").toFixed(2)}`
+                            : "S/. 0.00"
+                        }
                       </td>
                       <td className="py-4 px-4">
                         {rule ? (
@@ -268,12 +281,12 @@ export default function CommissionConfigurator({
                             {rule.type === "percentage" ? (
                               <>
                                 <Percent className="h-3 w-3 text-[#714B67]" />
-                                {rule.value}% del Subtotal
+                                {typeof rule.value === "number" ? rule.value : parseFloat(rule.value as any || "0")}% del Subtotal
                               </>
                             ) : (
                               <>
                                 <CircleDollarSign className="h-3 w-3 text-[#714B67]" />
-                                S/. {rule.value.toFixed(2)} fijo por u.
+                                S/. {typeof rule.value === "number" ? rule.value.toFixed(2) : parseFloat(rule.value as any || "0").toFixed(2)} fijo por u.
                               </>
                             )}
                           </div>
