@@ -1098,7 +1098,7 @@ async function startServer() {
             "search_read",
             [[
               ["company_id", "in", [companyIdInt]],
-              ["state", "in", ["paid", "done", "invoiced"]]
+              ["state", "in", ["draft", "paid", "done", "invoiced"]]
             ]],
             { 
               fields: ["id", "name", "date_order", "amount_total", "lines", "invoice_id", "session_id", "partner_id"],
@@ -1115,7 +1115,7 @@ async function startServer() {
             "search_read",
             [[
               ["company_id", "in", [companyIdInt]],
-              ["state", "in", ["paid", "done", "invoiced"]]
+              ["state", "in", ["draft", "paid", "done", "invoiced"]]
             ]],
             { 
               fields: ["id", "name", "date_order", "amount_total", "lines", "session_id", "partner_id"],
@@ -1135,7 +1135,7 @@ async function startServer() {
               "pos.order",
               "search_read",
               [[
-                ["state", "in", ["paid", "done", "invoiced"]]
+                ["state", "in", ["draft", "paid", "done", "invoiced"]]
               ]],
               { 
                 fields: ["id", "name", "date_order", "amount_total", "lines", "session_id", "partner_id"]
