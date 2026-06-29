@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { OdooConnection, OdooCompany } from "../types";
 import { Key, Database, Globe, User, CheckCircle2, AlertTriangle, Play, RefreshCw, Layers } from "lucide-react";
 import { motion } from "motion/react";
@@ -32,6 +32,16 @@ export default function OdooConnectionForm({
     username: connection.username || "",
     password: connection.password || ""
   });
+
+  // Keep form fields synced with saved credentials from localStorage
+  useEffect(() => {
+    setFormValues({
+      url: connection.url || "",
+      db: connection.db || "",
+      username: connection.username || "",
+      password: connection.password || ""
+    });
+  }, [connection.url, connection.db, connection.username, connection.password]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormValues({

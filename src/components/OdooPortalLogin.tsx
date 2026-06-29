@@ -47,12 +47,12 @@ export default function OdooPortalLogin({
         const isAdmin = data.user.role === "admin";
         onChangeConnection({
           ...connection,
-          username: username.trim(),
-          password: password.trim(),
-          isConnected: false, // will connect Odoo database next
+          username: isAdmin ? (connection.username || "") : username.trim(),
+          password: isAdmin ? (connection.password || "") : password.trim(),
+          isConnected: isAdmin ? connection.isConnected : false,
           isDemoMode: !isAdmin, // demo mode for non-admin tests
-          companyId: isAdmin ? 0 : 1,
-          companyName: isAdmin ? "Configurar Conexión ERP" : "GAORSYSTEM PERU"
+          companyId: isAdmin ? (connection.companyId || 0) : 1,
+          companyName: isAdmin ? (connection.companyName || "Configurar Conexión ERP") : "GAORSYSTEM PERU"
         });
         onLoginSuccess();
       } else {

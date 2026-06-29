@@ -59,13 +59,13 @@ export default function App() {
   }, [connection]);
 
   // Main data collections (synced with persistent backend JSON db)
-  const [products, setProducts] = useState<OdooProduct[]>(MOCK_PRODUCTS);
-  const [orders, setOrders] = useState<OdooSaleOrder[]>(MOCK_ORDERS);
-  const [orderLines, setOrderLines] = useState<OdooSaleOrderLine[]>(MOCK_ORDER_LINES);
-  const [expiryAlerts, setExpiryAlerts] = useState<ExpiryAlert[]>(MOCK_EXPIRY_ALERTS);
-  const [posReports, setPosReports] = useState<PosDailyReport[]>(MOCK_POS_DAILY_REPORTS);
-  const [posSessions, setPosSessions] = useState<PosSession[]>(MOCK_POS_SESSIONS);
-  const [posTransactions, setPosTransactions] = useState<PosTransactionDetail[]>(MOCK_POS_TRANSACTIONS);
+  const [products, setProducts] = useState<OdooProduct[]>(() => connection.isDemoMode ? MOCK_PRODUCTS : []);
+  const [orders, setOrders] = useState<OdooSaleOrder[]>(() => connection.isDemoMode ? MOCK_ORDERS : []);
+  const [orderLines, setOrderLines] = useState<OdooSaleOrderLine[]>(() => connection.isDemoMode ? MOCK_ORDER_LINES : []);
+  const [expiryAlerts, setExpiryAlerts] = useState<ExpiryAlert[]>(() => connection.isDemoMode ? MOCK_EXPIRY_ALERTS : []);
+  const [posReports, setPosReports] = useState<PosDailyReport[]>(() => connection.isDemoMode ? MOCK_POS_DAILY_REPORTS : []);
+  const [posSessions, setPosSessions] = useState<PosSession[]>(() => connection.isDemoMode ? MOCK_POS_SESSIONS : []);
+  const [posTransactions, setPosTransactions] = useState<PosTransactionDetail[]>(() => connection.isDemoMode ? MOCK_POS_TRANSACTIONS : []);
   const [odooUsers, setOdooUsers] = useState<any[]>([]);
 
   // Commission rules setup
@@ -81,13 +81,23 @@ export default function App() {
         const res = await fetch("/api/db/get-data");
         const data = await res.json();
         if (data.success) {
-          if (data.products && data.products.length > 0) setProducts(data.products);
-          if (data.orders) setOrders(data.orders);
-          if (data.orderLines) setOrderLines(data.orderLines);
-          if (data.expiryAlerts) setExpiryAlerts(data.expiryAlerts);
-          if (data.posReports) setPosReports(data.posReports);
-          if (data.posSessions) setPosSessions(data.posSessions);
-          if (data.posTransactions) setPosTransactions(data.posTransactions);
+          if (connection.isDemoMode) {
+            if (data.products && data.products.length > 0) setProducts(data.products);
+            if (data.orders) setOrders(data.orders);
+            if (data.orderLines) setOrderLines(data.orderLines);
+            if (data.expiryAlerts) setExpiryAlerts(data.expiryAlerts);
+            if (data.posReports) setPosReports(data.posReports);
+            if (data.posSessions) setPosSessions(data.posSessions);
+            if (data.posTransactions) setPosTransactions(data.posTransactions);
+          } else {
+            setProducts(data.products || []);
+            setOrders(data.orders || []);
+            setOrderLines(data.orderLines || []);
+            setExpiryAlerts(data.expiryAlerts || []);
+            setPosReports(data.posReports || []);
+            setPosSessions(data.posSessions || []);
+            setPosTransactions(data.posTransactions || []);
+          }
           if (data.odooUsers) setOdooUsers(data.odooUsers);
           if (data.rules) setRules(data.rules);
         }
@@ -96,7 +106,7 @@ export default function App() {
       }
     };
     fetchDatabase();
-  }, []);
+  }, [connection.isDemoMode]);
 
   // Handle loading real data vs returning to demo mode
   useEffect(() => {
@@ -136,26 +146,19 @@ export default function App() {
     setProducts(Array.isArray(loadedProducts) ? loadedProducts : []);
     setOrders(Array.isArray(loadedOrders) ? loadedOrders : []);
     setOrderLines(Array.isArray(loadedLines) ? loadedLines : []);
-    if (loadedExpiry && Array.isArray(loadedExpiry) && loadedExpiry.length > 0) {
-      setExpiryAlerts(loadedExpiry);
+    
+    if (connection.isDemoMode) {
+      setExpiryAlerts(loadedExpiry && Array.isArray(loadedExpiry) && loadedExpiry.length > 0 ? loadedExpiry : MOCK_EXPIRY_ALERTS);
+      setPosReports(loadedPos && Array.isArray(loadedPos) && loadedPos.length > 0 ? loadedPos : MOCK_POS_DAILY_REPORTS);
+      setPosSessions(loadedSessions && Array.isArray(loadedSessions) && loadedSessions.length > 0 ? loadedSessions : MOCK_POS_SESSIONS);
+      setPosTransactions(loadedTxs && Array.isArray(loadedTxs) && loadedTxs.length > 0 ? loadedTxs : MOCK_POS_TRANSACTIONS);
     } else {
-      setExpiryAlerts(MOCK_EXPIRY_ALERTS);
+      setExpiryAlerts(Array.isArray(loadedExpiry) ? loadedExpiry : []);
+      setPosReports(Array.isArray(loadedPos) ? loadedPos : []);
+      setPosSessions(Array.isArray(loadedSessions) ? loadedSessions : []);
+      setPosTransactions(Array.isArray(loadedTxs) ? loadedTxs : []);
     }
-    if (loadedPos && Array.isArray(loadedPos) && loadedPos.length > 0) {
-      setPosReports(loadedPos);
-    } else {
-      setPosReports(MOCK_POS_DAILY_REPORTS);
-    }
-    if (loadedSessions && Array.isArray(loadedSessions) && loadedSessions.length > 0) {
-      setPosSessions(loadedSessions);
-    } else {
-      setPosSessions(MOCK_POS_SESSIONS);
-    }
-    if (loadedTxs && Array.isArray(loadedTxs) && loadedTxs.length > 0) {
-      setPosTransactions(loadedTxs);
-    } else {
-      setPosTransactions(MOCK_POS_TRANSACTIONS);
-    }
+    
     if (loadedUsers && Array.isArray(loadedUsers)) {
       setOdooUsers(loadedUsers);
     } else {
