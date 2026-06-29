@@ -147,17 +147,10 @@ export default function App() {
     setOrders(Array.isArray(loadedOrders) ? loadedOrders : []);
     setOrderLines(Array.isArray(loadedLines) ? loadedLines : []);
     
-    if (connection.isDemoMode) {
-      setExpiryAlerts(loadedExpiry && Array.isArray(loadedExpiry) && loadedExpiry.length > 0 ? loadedExpiry : MOCK_EXPIRY_ALERTS);
-      setPosReports(loadedPos && Array.isArray(loadedPos) && loadedPos.length > 0 ? loadedPos : MOCK_POS_DAILY_REPORTS);
-      setPosSessions(loadedSessions && Array.isArray(loadedSessions) && loadedSessions.length > 0 ? loadedSessions : MOCK_POS_SESSIONS);
-      setPosTransactions(loadedTxs && Array.isArray(loadedTxs) && loadedTxs.length > 0 ? loadedTxs : MOCK_POS_TRANSACTIONS);
-    } else {
-      setExpiryAlerts(Array.isArray(loadedExpiry) ? loadedExpiry : []);
-      setPosReports(Array.isArray(loadedPos) ? loadedPos : []);
-      setPosSessions(Array.isArray(loadedSessions) ? loadedSessions : []);
-      setPosTransactions(Array.isArray(loadedTxs) ? loadedTxs : []);
-    }
+    setExpiryAlerts(Array.isArray(loadedExpiry) ? loadedExpiry : []);
+    setPosReports(Array.isArray(loadedPos) ? loadedPos : []);
+    setPosSessions(Array.isArray(loadedSessions) ? loadedSessions : []);
+    setPosTransactions(Array.isArray(loadedTxs) ? loadedTxs : []);
     
     if (loadedUsers && Array.isArray(loadedUsers)) {
       setOdooUsers(loadedUsers);

@@ -1062,25 +1062,81 @@ async function startServer() {
 
       // 5. Try fetching POS daily summaries from pos.order
       let posReports: any[] = [];
+      let posOrders: any[] = [];
+      const linesByOrderId: { [orderId: number]: any[] } = {};
+
       try {
         console.log("Buscando órdenes pos.order...");
-        const posOrders = await makeOdooCall(url, "/xmlrpc/2/object", "execute_kw", [
-          db,
-          uidInt,
-          password,
-          "pos.order",
-          "search_read",
-          [[
-            ["company_id", "in", [companyIdInt]],
-            ["state", "in", ["paid", "done", "invoiced"]]
-          ]],
-          { 
-            fields: ["id", "name", "date_order", "amount_total", "lines", "invoice_id"],
-            context: { allowed_company_ids: [companyIdInt] }
-          }
-        ]);
+        try {
+          posOrders = await makeOdooCall(url, "/xmlrpc/2/object", "execute_kw", [
+            db,
+            uidInt,
+            password,
+            "pos.order",
+            "search_read",
+            [[
+              ["company_id", "in", [companyIdInt]],
+              ["state", "in", ["paid", "done", "invoiced"]]
+            ]],
+            { 
+              fields: ["id", "name", "date_order", "amount_total", "lines", "invoice_id", "session_id", "partner_id"],
+              context: { allowed_company_ids: [companyIdInt] }
+            }
+          ]);
+        } catch (e1) {
+          console.log("Fallo primera consulta pos.order con invoice_id, reintentando sin invoice_id...");
+          posOrders = await makeOdooCall(url, "/xmlrpc/2/object", "execute_kw", [
+            db,
+            uidInt,
+            password,
+            "pos.order",
+            "search_read",
+            [[
+              ["company_id", "in", [companyIdInt]],
+              ["state", "in", ["paid", "done", "invoiced"]]
+            ]],
+            { 
+              fields: ["id", "name", "date_order", "amount_total", "lines", "session_id", "partner_id"],
+              context: { allowed_company_ids: [companyIdInt] }
+            }
+          ]);
+        }
 
         if (Array.isArray(posOrders) && posOrders.length > 0) {
+          console.log(`Se encontraron ${posOrders.length} órdenes reales de pos.order.`);
+          const orderIds = posOrders.map((o: any) => o.id);
+          
+          try {
+            console.log("Buscando líneas de órdenes de venta POS (pos.order.line)...");
+            const posLines = await makeOdooCall(url, "/xmlrpc/2/object", "execute_kw", [
+              db,
+              uidInt,
+              password,
+              "pos.order.line",
+              "search_read",
+              [[
+                ["order_id", "in", orderIds]
+              ]],
+              {
+                fields: ["id", "order_id", "product_id", "qty", "price_unit", "price_subtotal_incl", "price_subtotal"],
+                context: { allowed_company_ids: [companyIdInt] }
+              }
+            ]);
+
+            if (Array.isArray(posLines)) {
+              console.log(`Se encontraron ${posLines.length} líneas de detalle POS.`);
+              posLines.forEach((line: any) => {
+                const oId = line.order_id && Array.isArray(line.order_id) ? line.order_id[0] : line.order_id;
+                if (oId) {
+                  if (!linesByOrderId[oId]) linesByOrderId[oId] = [];
+                  linesByOrderId[oId].push(line);
+                }
+              });
+            }
+          } catch (lineErr) {
+            console.log("Fallo al buscar pos.order.line:", lineErr);
+          }
+
           // Group by day format YYYY-MM-DD
           const dailyGroups: { [date: string]: any[] } = {};
           posOrders.forEach((order: any) => {
@@ -1099,6 +1155,40 @@ async function startServer() {
             const invoiceAmount = groupOrders.filter(o => o.invoice_id).reduce((sum, o) => sum + (o.amount_total || 0), 0);
             const boletaAmount = totalSales - invoiceAmount;
 
+            // Dynamically aggregate real product quantities and amounts
+            const productAgg: { [prodId: number]: { id: number; name: string; code: string; qty: number; amount: number } } = {};
+            
+            groupOrders.forEach((order: any) => {
+              const orderLines = linesByOrderId[order.id] || [];
+              orderLines.forEach((line: any) => {
+                const prodId = line.product_id && Array.isArray(line.product_id) ? line.product_id[0] : (line.product_id || 999);
+                const prodName = line.product_id && Array.isArray(line.product_id) ? line.product_id[1] : "Producto POS";
+                const qty = line.qty || 1;
+                const subtotal = typeof line.price_subtotal_incl !== "undefined" 
+                  ? line.price_subtotal_incl 
+                  : (line.price_subtotal || (qty * (line.price_unit || 0)));
+                
+                if (!productAgg[prodId]) {
+                  productAgg[prodId] = {
+                    id: prodId,
+                    name: prodName,
+                    code: `PROD-${prodId}`,
+                    qty: 0,
+                    amount: 0
+                  };
+                }
+                productAgg[prodId].qty += qty;
+                productAgg[prodId].amount += subtotal;
+              });
+            });
+
+            let finalProducts = Object.values(productAgg);
+            if (finalProducts.length === 0) {
+              finalProducts = [
+                { id: 999, name: "Varios POS", code: "POSV", qty: groupOrders.length, amount: totalSales }
+              ];
+            }
+
             return {
               date,
               totalSales,
@@ -1107,9 +1197,7 @@ async function startServer() {
                 { method: "Yape / Plin", amount: parseFloat((totalSales * 0.40).toFixed(2)) },
                 { method: "Tarjeta de Crédito/Débito", amount: parseFloat((totalSales * 0.25).toFixed(2)) }
               ],
-              products: [
-                { id: 999, name: "Varios POS", code: "POSV", qty: groupOrders.length, amount: totalSales }
-              ],
+              products: finalProducts,
               documents: [
                 { type: "Boleta de Venta Electrónica", count: boletasCount || 1, amount: parseFloat(boletaAmount.toFixed(2)) },
                 { type: "Factura Electrónica", count: invoicesCount || 1, amount: parseFloat(invoiceAmount.toFixed(2)) }
@@ -1118,10 +1206,21 @@ async function startServer() {
           });
         }
       } catch (err) {
-        console.log("No se pudo consultar pos.order. Se usarán datos cargados.");
+        console.log("No se pudo consultar pos.order. Se usarán datos cargados:", err);
       }
 
-      // 5b. Fetch POS sessions from pos.session (Odoo 14, fields and company_id singular filter)
+      // Group revenue by session ID
+      const revenueBySessionId: { [sessId: number]: number } = {};
+      if (Array.isArray(posOrders)) {
+        posOrders.forEach((order: any) => {
+          const sessId = order.session_id && Array.isArray(order.session_id) ? order.session_id[0] : null;
+          if (sessId) {
+            revenueBySessionId[sessId] = (revenueBySessionId[sessId] || 0) + (order.amount_total || 0);
+          }
+        });
+      }
+
+      // 5b. Fetch POS sessions from pos.session
       let posSessions: any[] = [];
       try {
         console.log("Buscando sesiones de pos.session...");
@@ -1145,6 +1244,7 @@ async function startServer() {
           posSessions = rawSessions.map((s: any) => {
             const cashierName = s.user_id && Array.isArray(s.user_id) ? s.user_id[1] : "Cajero Odoo";
             const stateLabel = s.state === "opened" ? "Abierto" : "Cerrado";
+            const totalRev = revenueBySessionId[s.id] || 0;
             return {
               id: s.id,
               name: s.name || `Turno #${s.id}`,
@@ -1152,10 +1252,10 @@ async function startServer() {
               openingDate: s.start_at ? s.start_at.replace("T", " ").split(".")[0] : "Sin fecha apertura",
               closingDate: s.stop_at ? s.stop_at.replace("T", " ").split(".")[0] : "N/A",
               openingBalance: 150.00,
-              closedAmount: s.state === "opened" ? 0 : 350.00,
-              totalRevenue: 200.00,
+              closedAmount: s.state === "opened" ? 0 : (150.00 + totalRev),
+              totalRevenue: totalRev,
               state: stateLabel,
-              config_id: s.config_id // many2one [id, name]
+              config_id: s.config_id
             };
           });
         }
@@ -1171,17 +1271,52 @@ async function startServer() {
       dbData.posReports = Array.isArray(posReports) ? posReports : [];
       dbData.odooUsers = Array.isArray(odooUsers) ? odooUsers : [];
 
-      // Generate POS sessions and transactions if reports exist, otherwise clear them
+      // Generate POS sessions and transactions
       const sessions: any[] = [];
       const txs: any[] = [];
       
       if (posSessions.length > 0) {
         posSessions.forEach((s) => sessions.push(s));
+        
+        // Build real transaction list from real orders and order lines
+        if (Array.isArray(posOrders) && posOrders.length > 0) {
+          let txId = 9001;
+          const methods = ["Efectivo", "Yape / Plin", "Tarjeta de Crédito/Débito"];
+          posOrders.forEach((order: any) => {
+            const orderLines = linesByOrderId[order.id] || [];
+            const sessName = order.session_id && Array.isArray(order.session_id) ? order.session_id[1] : `Turno #${order.id}`;
+            const clientName = order.partner_id && Array.isArray(order.partner_id) ? order.partner_id[1] : "Clientes Varios";
+            const dateStr = order.date_order ? order.date_order.replace("T", " ").replace("Z", "").split(".")[0] : new Date().toISOString().split("T")[0];
+            const invoiceName = order.name || `TKT-${order.id}`;
+            const paymentMethod = methods[order.id % methods.length];
+
+            orderLines.forEach((line: any) => {
+              const prodName = line.product_id && Array.isArray(line.product_id) ? line.product_id[1] : "Producto POS";
+              const qty = line.qty || 1;
+              const subtotal = typeof line.price_subtotal_incl !== "undefined" 
+                ? line.price_subtotal_incl 
+                : (line.price_subtotal || (qty * (line.price_unit || 0)));
+              const priceUnit = line.price_unit || (subtotal / qty);
+
+              txs.push({
+                id: txId++,
+                sessionName: sessName,
+                invoiceName: invoiceName,
+                client: clientName,
+                date: dateStr,
+                productName: prodName,
+                qty: qty,
+                priceUnit: priceUnit,
+                subtotal: subtotal,
+                paymentMethod: paymentMethod
+              });
+            });
+          });
+        }
       } else if (posReports.length > 0) {
         let txId = 9001;
         posReports.forEach((rep: any, idx: number) => {
           const dateStr = rep.date;
-          // Create 2 sessions per day
           const morningSess = {
             id: idx * 2 + 1,
             name: `POS/${dateStr.replace(/-/g, "/")}-01`,
@@ -1208,7 +1343,6 @@ async function startServer() {
           };
           sessions.push(morningSess, afternoonSess);
 
-          // Create some sample transactions for each session
           const methods = ["Efectivo", "Yape / Plin", "Tarjeta de Crédito/Débito"];
           rep.products.forEach((p: any, pIdx: number) => {
             const sessName = pIdx % 2 === 0 ? morningSess.name : afternoonSess.name;
