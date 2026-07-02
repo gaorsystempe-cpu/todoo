@@ -1,12 +1,13 @@
 import React, { useState } from "react";
 import { OdooConnection } from "../types";
-import { KeyRound, Mail, Eye, EyeOff, Loader2, BarChart3, ShieldCheck, ShoppingBag } from "lucide-react";
+import { KeyRound, Mail, Eye, EyeOff, Loader2 } from "lucide-react";
+import heroImage from "../assets/images/odoo_portal_hero_1782267365688.jpg";
 
 interface OdooPortalLoginProps {
   connection: OdooConnection;
   onChangeConnection: (conn: OdooConnection) => void;
   onDataLoaded: (products: any[], orders: any[], orderLines: any[], expiryAlerts?: any[], posReports?: any[]) => void;
-  onLoginSuccess: () => void;
+  onLoginSuccess: (user: any) => void;
 }
 
 export default function OdooPortalLogin({
@@ -58,7 +59,7 @@ export default function OdooPortalLogin({
             companyName: "GAORSYSTEM PERU"
           });
         }
-        onLoginSuccess();
+        onLoginSuccess(data.user);
       } else {
         setError(data.message || "Credenciales de acceso incorrectas.");
       }
@@ -68,18 +69,6 @@ export default function OdooPortalLogin({
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleAutofillDemo = () => {
-    setUsername("demo@gaorsystem.pe");
-    setPassword("demo");
-    setError(null);
-  };
-
-  const handleAutofillAdmin = () => {
-    setUsername("soporte@facturaclic.pe");
-    setPassword("Luis2021.");
-    setError(null);
   };
 
   return (
@@ -100,58 +89,22 @@ export default function OdooPortalLogin({
             </div>
             
             <div className="space-y-3">
-              <span className="text-[10px] bg-white/10 text-purple-100 uppercase font-black tracking-widest px-2.5 py-1 rounded-full w-fit block">
-                Sistemas de Información de Negocios
-              </span>
               <h2 className="text-2xl sm:text-3xl font-black leading-tight tracking-tight text-white">
-                Gestión Inteligente y Decisiones Comerciales
+                Gestión de Comisiones
               </h2>
               <p className="text-xs sm:text-sm text-purple-100/90 font-medium leading-relaxed">
-                Optimice el rendimiento de su compañía mediante nuestro portal unificado. Diseñado exclusivamente para supervisar indicadores clave de ventas, auditorías diarias y logística.
+                Acceda a su portal unificado para supervisar sus liquidaciones de comisiones, ventas acumuladas e indicadores en tiempo real.
               </p>
-            </div>
-
-            {/* List of high-level business capabilities */}
-            <div className="space-y-3.5 pt-2">
-              <div className="flex items-start gap-3">
-                <div className="p-1.5 bg-white/10 rounded-lg text-[#00A09D] shrink-0 mt-0.5">
-                  <BarChart3 className="h-4 w-4 text-white" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-white">Liquidación de Comisiones</h4>
-                  <p className="text-[11px] text-purple-200/90">Efectúe el cálculo preciso y automatizado para su fuerza de ventas.</p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3">
-                <div className="p-1.5 bg-white/10 rounded-lg text-[#00A09D] shrink-0 mt-0.5">
-                  <ShieldCheck className="h-4 w-4 text-white" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-white">Control de Lotes y Caducidades</h4>
-                  <p className="text-[11px] text-purple-200/90">Prevenga pérdidas monitoreando fechas de vencimiento clave.</p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3">
-                <div className="p-1.5 bg-white/10 rounded-lg text-[#00A09D] shrink-0 mt-0.5">
-                  <ShoppingBag className="h-4 w-4 text-white" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-white">Auditoría POS Diaria</h4>
-                  <p className="text-[11px] text-purple-200/90">Visualice e integre los ingresos de sus puntos de venta.</p>
-                </div>
-              </div>
             </div>
           </div>
 
           {/* Dynamic Generated Dashboard Preview from earlier step */}
           <div className="relative z-10 my-6">
             <img
-              src="/src/assets/images/odoo_portal_hero_1782267365688.jpg"
+              src={heroImage}
               alt="todoo Portal Dashboard"
               referrerPolicy="no-referrer"
-              className="rounded-2xl shadow-xl border border-white/10 max-h-[160px] object-cover w-full transform hover:scale-[1.02] transition-transform duration-300"
+              className="rounded-2xl shadow-xl border border-white/10 max-h-[180px] object-cover w-full transform hover:scale-[1.02] transition-transform duration-300"
             />
           </div>
 
@@ -177,43 +130,6 @@ export default function OdooPortalLogin({
               {error}
             </div>
           )}
-
-          {/* Quick credentials display & autofill button */}
-          <div className="mb-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="p-3 bg-purple-50/70 rounded-2xl border border-purple-100 flex items-center justify-between gap-2 shadow-xs">
-              <div className="space-y-0.5">
-                <span className="text-[9px] font-black uppercase text-[#714B67] tracking-wider block">Acceso de Demostración</span>
-                <div className="text-[10px] text-slate-600 font-medium leading-tight">
-                  <div><span className="font-bold text-slate-700">Usuario:</span> demo@gaorsystem.pe</div>
-                  <div><span className="font-bold text-slate-700">Contraseña:</span> demo</div>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={handleAutofillDemo}
-                className="px-2.5 py-1 text-[9px] font-black text-[#714B67] hover:text-white bg-purple-100/80 hover:bg-[#714B67] border border-purple-200 rounded-lg transition-all cursor-pointer whitespace-nowrap align-middle"
-              >
-                Cargar
-              </button>
-            </div>
-
-            <div className="p-3 bg-emerald-50/70 rounded-2xl border border-emerald-100 flex items-center justify-between gap-2 shadow-xs">
-              <div className="space-y-0.5">
-                <span className="text-[9px] font-black uppercase text-emerald-800 tracking-wider block">Soporte FacturaClic (Admin)</span>
-                <div className="text-[10px] text-slate-600 font-medium leading-tight">
-                  <div><span className="font-bold text-slate-700">Usuario:</span> soporte@facturaclic.pe</div>
-                  <div><span className="font-bold text-slate-700">Contraseña:</span> Luis2021.</div>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={handleAutofillAdmin}
-                className="px-2.5 py-1 text-[9px] font-black text-emerald-800 hover:text-white bg-emerald-100/80 hover:bg-emerald-800 border border-emerald-200 rounded-lg transition-all cursor-pointer whitespace-nowrap align-middle"
-              >
-                Cargar
-              </button>
-            </div>
-          </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Username Field */}
@@ -292,13 +208,6 @@ export default function OdooPortalLogin({
               )}
             </button>
           </form>
-
-          {/* Business notice */}
-          <div className="mt-8 pt-6 border-t border-slate-100 text-center lg:text-left">
-            <p className="text-[10px] text-slate-400 font-medium leading-relaxed">
-              * Para fines de demostración de este sistema, puede ingresar cualquier usuario y contraseña para explorar las pantallas del portal.
-            </p>
-          </div>
         </div>
 
       </div>

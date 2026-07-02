@@ -15,6 +15,7 @@ interface SalesDashboardProps {
   onSaveRule: (productId: number, type: "percentage" | "flat", value: number) => void;
   onRemoveRule: (productId: number) => void;
   onSelectSalesperson: (summary: SalespersonSummary) => void;
+  currentUser?: any;
 }
 
 export default function SalesDashboard({
@@ -24,7 +25,8 @@ export default function SalesDashboard({
   rules,
   onSaveRule,
   onRemoveRule,
-  onSelectSalesperson
+  onSelectSalesperson,
+  currentUser
 }: SalesDashboardProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [subTab, setSubTab] = useState<"reporte" | "tarifas">("reporte");
@@ -34,19 +36,76 @@ export default function SalesDashboard({
   const safeProducts = Array.isArray(products) ? products : [];
   const safeRules = Array.isArray(rules) ? rules : [];
 
-  const { summaries, totalCompanyRevenue, totalCompanyCommission } = useMemo(() => {
-    return calculateCommissionReport(safeOrders, safeOrderLines, safeRules);
-  }, [safeOrders, safeOrderLines, safeRules]);
+  // Filter orders by salesperson if they are not an administrator
+  const filteredOrders = useMemo(() => {
+    if (currentUser && currentUser.role !== "admin") {
+      return safeOrders.filter((o) => {
+        const hasUserMatch = o.user_id && Array.isArray(o.user_id) && o.user_id.length === 2;
+        if (!hasUserMatch) return false;
 
-  // Filter summaries based on salesperson name search
+        const odooUserId = o.user_id[0];
+        const salespersonName = o.user_id[1];
+
+        if (currentUser.odoo_partner_id) {
+          return odooUserId === currentUser.odoo_partner_id;
+        }
+        return salespersonName.toLowerCase().trim() === currentUser.name.toLowerCase().trim();
+      });
+    }
+    return safeOrders;
+  }, [safeOrders, currentUser]);
+
+  const { summaries, totalCompanyRevenue, totalCompanyCommission } = useMemo(() => {
+    return calculateCommissionReport(filteredOrders, safeOrderLines, safeRules);
+  }, [filteredOrders, safeOrderLines, safeRules]);
+
+  // Filter summaries based on salesperson name search (only used by admin)
   const filteredSummaries = useMemo(() => {
     return (summaries || []).filter((item) =>
       item && item.name && item.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
   }, [summaries, searchTerm]);
 
-  // Chart data preparing: commission per salesperson
+  // For a salesperson, filter their commission lines by search term
+  const filteredCommissionLines = useMemo(() => {
+    if (currentUser && currentUser.role !== "admin") {
+      const mySummary = summaries[0];
+      if (!mySummary || !Array.isArray(mySummary.commissionLines)) return [];
+
+      return mySummary.commissionLines.filter((line) => {
+        const term = searchTerm.toLowerCase();
+        return (
+          line.orderName.toLowerCase().includes(term) ||
+          line.productName.toLowerCase().includes(term) ||
+          line.date.includes(term)
+        );
+      });
+    }
+    return [];
+  }, [summaries, currentUser, searchTerm]);
+
+  // Chart data preparing: commission per salesperson (or commission per product if salesperson logged in)
   const chartData = useMemo(() => {
+    if (currentUser && currentUser.role !== "admin") {
+      // Group the salesperson's commissionLines by product
+      const mySummary = summaries[0];
+      if (!mySummary || !Array.isArray(mySummary.commissionLines)) return [];
+
+      const productMap: { [key: string]: number } = {};
+      mySummary.commissionLines.forEach((line) => {
+        if (line.commission > 0) {
+          productMap[line.productName] = (productMap[line.productName] || 0) + line.commission;
+        }
+      });
+
+      return Object.entries(productMap).map(([prodName, commValue]) => ({
+        name: prodName.length > 20 ? prodName.substring(0, 18) + "..." : prodName,
+        fullName: prodName,
+        Comision: parseFloat(commValue.toFixed(2))
+      }));
+    }
+
+    // Default admin view: commission per salesperson
     return (summaries || []).map((s) => {
       const nameVal = s && s.name ? s.name : "Vendedor";
       return {
@@ -56,7 +115,7 @@ export default function SalesDashboard({
         Comision: parseFloat((s?.totalCommission || 0).toFixed(2))
       };
     });
-  }, [summaries]);
+  }, [summaries, currentUser]);
 
   // Chart colors
   const COLORS = ["#714B67", "#00A09D", "#9b5de5", "#f15bb5", "#fee440", "#00f5d4"];
@@ -129,6 +188,8 @@ export default function SalesDashboard({
     XLSX.writeFile(workbook, "reporte-resumen-comisiones-todoo.xlsx");
   };
 
+  const isAdmin = !currentUser || currentUser.role === "admin";
+
   return (
     <div className="space-y-6">
       {/* Unified sub-navigation header */}
@@ -136,37 +197,41 @@ export default function SalesDashboard({
         <div>
           <h2 className="text-xl font-extrabold text-slate-900 flex items-center gap-2">
             <Percent className="h-5 w-5 text-[#714B67]" />
-            Gestión Integral de Comisiones
+            {isAdmin ? "Gestión Integral de Comisiones" : "Mi Liquidación de Comisiones"}
           </h2>
           <p className="text-xs text-slate-500 mt-1">
-            Visualice los reportes de liquidación de su fuerza de ventas y asigne tarifas por producto en esta pestaña consolidada.
+            {isAdmin
+              ? "Visualice los reportes de liquidación de su fuerza de ventas y asigne tarifas por producto en esta pestaña consolidada."
+              : "Consulte el resumen y desglose detallado de sus comisiones generadas por sus ventas registradas."}
           </p>
         </div>
 
-        <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200 shrink-0">
-          <button
-            onClick={() => setSubTab("reporte")}
-            className={`px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
-              subTab === "reporte"
-                ? "bg-white text-[#714B67] shadow-soft"
-                : "text-slate-600 hover:text-slate-900"
-            }`}
-          >
-            <BarChart3 className="h-4 w-4" />
-            Reporte de Liquidación
-          </button>
-          <button
-            onClick={() => setSubTab("tarifas")}
-            className={`px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
-              subTab === "tarifas"
-                ? "bg-white text-[#714B67] shadow-soft"
-                : "text-slate-600 hover:text-slate-900"
-            }`}
-          >
-            <Percent className="h-4 w-4" />
-            Asignar Tarifas de todoo
-          </button>
-        </div>
+        {isAdmin && (
+          <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200 shrink-0">
+            <button
+              onClick={() => setSubTab("reporte")}
+              className={`px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
+                subTab === "reporte"
+                  ? "bg-white text-[#714B67] shadow-soft"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <BarChart3 className="h-4 w-4" />
+              Reporte de Liquidación
+            </button>
+            <button
+              onClick={() => setSubTab("tarifas")}
+              className={`px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
+                subTab === "tarifas"
+                  ? "bg-white text-[#714B67] shadow-soft"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <Percent className="h-4 w-4" />
+              Asignar Tarifas de todoo
+            </button>
+          </div>
+        )}
       </div>
 
       <AnimatePresence mode="wait">
@@ -187,7 +252,9 @@ export default function SalesDashboard({
                   <DollarSign className="h-6 w-6" />
                 </div>
                 <div>
-                  <span className="text-xs text-slate-400 font-semibold block">Ventas de Empresa</span>
+                  <span className="text-xs text-slate-400 font-semibold block">
+                    {isAdmin ? "Ventas de Empresa" : "Mis Ventas Consolidadas"}
+                  </span>
                   <span className="text-xl font-bold font-mono text-slate-850">
                     S/. {totalCompanyRevenue.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
@@ -200,7 +267,9 @@ export default function SalesDashboard({
                   <Award className="h-6 w-6" />
                 </div>
                 <div>
-                  <span className="text-xs text-slate-400 font-semibold block">Comisiones Acumuladas</span>
+                  <span className="text-xs text-slate-400 font-semibold block">
+                    {isAdmin ? "Comisiones Acumuladas" : "Mis Comisiones por Cobrar"}
+                  </span>
                   <span className="text-xl font-bold font-mono text-[#00A09D]">
                     S/. {totalCompanyCommission.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
@@ -213,7 +282,9 @@ export default function SalesDashboard({
                   <TrendingUp className="h-6 w-6" />
                 </div>
                 <div>
-                  <span className="text-xs text-slate-400 font-semibold block">Tasa Promedio</span>
+                  <span className="text-xs text-slate-400 font-semibold block">
+                    {isAdmin ? "Tasa Promedio" : "Mi Tasa Promedio"}
+                  </span>
                   <span className="text-xl font-bold font-mono text-amber-700">
                     {totalCompanyRevenue > 0
                       ? ((totalCompanyCommission / totalCompanyRevenue) * 100).toFixed(2)
@@ -229,8 +300,12 @@ export default function SalesDashboard({
                   <Users className="h-6 w-6" />
                 </div>
                 <div>
-                  <span className="text-xs text-slate-400 font-semibold block">Vendedores Activos</span>
-                  <span className="text-xl font-bold text-slate-800">{summaries.length}</span>
+                  <span className="text-xs text-slate-400 font-semibold block">
+                    {isAdmin ? "Vendedores Activos" : "Mis Pedidos Facturados"}
+                  </span>
+                  <span className="text-xl font-bold font-mono text-slate-850">
+                    {isAdmin ? summaries.length : filteredOrders.length}
+                  </span>
                 </div>
               </div>
             </div>
@@ -241,7 +316,7 @@ export default function SalesDashboard({
               <div className="lg:col-span-7 bg-white p-6 rounded-2xl border border-slate-200">
                 <h3 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-1.5">
                   <BarChart3 className="h-4 w-4 text-[#714B67]" />
-                  Comisiones por Vendedor en Moneda Local (S/.)
+                  {isAdmin ? "Comisiones por Vendedor en Moneda Local (S/.)" : "Mis Comisiones por Producto en Moneda Local (S/.)"}
                 </h3>
                 <div className="h-72 w-full">
                   {chartData.length === 0 ? (
@@ -274,37 +349,68 @@ export default function SalesDashboard({
                 <div>
                   <h3 className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-1.5">
                     <Award className="h-4 w-4 text-[#714B67]" />
-                    Líderes de Comisión
+                    {isAdmin ? "Líderes de Comisión" : "Mis Comisiones por Producto"}
                   </h3>
-                  <p className="text-xs text-slate-400 mb-4">Ranking de su fuerza de trabajo por valor liquidado en la compañía actual.</p>
+                  <p className="text-xs text-slate-400 mb-4">
+                    {isAdmin
+                      ? "Ranking de su fuerza de trabajo por valor liquidado en la compañía actual."
+                      : "Distribución de sus comisiones acumuladas según las tarifas de productos configuradas."}
+                  </p>
                   
-                  <div className="space-y-3">
-                    {summaries.length === 0 ? (
-                      <div className="text-center py-8 text-xs text-slate-400 italic">No hay registros de ventas.</div>
-                    ) : (
-                      summaries
-                        .slice()
-                        .sort((a, b) => b.totalCommission - a.totalCommission)
-                        .map((leader, i) => (
-                          <div key={leader.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 hover:bg-slate-100/70 border border-slate-100 transition-all">
-                            <div className="flex items-center gap-3">
-                              <span className={`h-6 w-6 rounded-full flex items-center justify-center font-bold text-xs text-white ${
-                                i === 0 ? "bg-amber-500" : i === 1 ? "bg-slate-400" : i === 2 ? "bg-amber-700" : "bg-slate-300"
-                              }`}>
-                                {i + 1}
-                              </span>
-                              <div>
-                                <span className="text-xs font-semibold text-slate-800 block">{leader.name}</span>
-                                <span className="text-[10px] text-slate-400 font-medium font-mono">
-                                  {leader.totalSalesCount} órdenes • S/. {leader.totalRevenue.toLocaleString("es-PE", { maximumFractionDigits: 1 })} vendido
+                  <div className="space-y-3 max-h-[220px] overflow-y-auto pr-1">
+                    {isAdmin ? (
+                      summaries.length === 0 ? (
+                        <div className="text-center py-8 text-xs text-slate-400 italic">No hay registros de ventas.</div>
+                      ) : (
+                        summaries
+                          .slice()
+                          .sort((a, b) => b.totalCommission - a.totalCommission)
+                          .map((leader, i) => (
+                            <div key={leader.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 hover:bg-slate-100/70 border border-slate-100 transition-all">
+                              <div className="flex items-center gap-3">
+                                <span className={`h-6 w-6 rounded-full flex items-center justify-center font-bold text-xs text-white ${
+                                  i === 0 ? "bg-amber-500" : i === 1 ? "bg-slate-400" : i === 2 ? "bg-amber-700" : "bg-slate-300"
+                                }`}>
+                                  {i + 1}
                                 </span>
+                                <div>
+                                  <span className="text-xs font-semibold text-slate-800 block">{leader.name}</span>
+                                  <span className="text-[10px] text-slate-400 font-medium font-mono">
+                                    {leader.totalSalesCount} órdenes • S/. {leader.totalRevenue.toLocaleString("es-PE", { maximumFractionDigits: 1 })} vendido
+                                  </span>
+                                </div>
                               </div>
+                              <span className="text-xs font-bold text-[#714B67] font-mono">
+                                S/. {leader.totalCommission.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </span>
                             </div>
-                            <span className="text-xs font-bold text-[#714B67] font-mono">
-                              S/. {leader.totalCommission.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </span>
-                          </div>
-                        ))
+                          ))
+                      )
+                    ) : (
+                      chartData.length === 0 ? (
+                        <div className="text-center py-8 text-xs text-slate-400 italic">No tiene comisiones calculadas aún.</div>
+                      ) : (
+                        chartData
+                          .slice()
+                          .sort((a, b) => b.Comision - a.Comision)
+                          .map((prod, i) => (
+                            <div key={prod.name} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 hover:bg-slate-100/70 border border-slate-100 transition-all">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <span className="h-5 w-5 rounded-full flex items-center justify-center font-bold text-[10px] text-slate-500 bg-slate-100 shrink-0">
+                                  {i + 1}
+                                </span>
+                                <div className="min-w-0">
+                                  <span className="text-xs font-semibold text-slate-800 block truncate" title={prod.fullName}>
+                                    {prod.fullName}
+                                  </span>
+                                </div>
+                              </div>
+                              <span className="text-xs font-bold text-[#714B67] font-mono shrink-0 ml-2">
+                                S/. {prod.Comision.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                          ))
+                      )
                     )}
                   </div>
                 </div>
@@ -315,8 +421,14 @@ export default function SalesDashboard({
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                  <h3 className="text-md font-semibold text-slate-800">Liquidación de Comisiones de Vendedores</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">Muestra las comisiones acumuladas computando únicamente los productos configurados con regla.</p>
+                  <h3 className="text-md font-semibold text-slate-800">
+                    {isAdmin ? "Liquidación de Comisiones de Vendedores" : "Desglose Detallado de Mis Comisiones"}
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {isAdmin
+                      ? "Muestra las comisiones acumuladas computando únicamente los productos configurados con regla."
+                      : "Listado completo de órdenes y artículos que han generado comisiones para su perfil."}
+                  </p>
                 </div>
 
                 <div className="flex items-center gap-2 flex-wrap">
@@ -346,63 +458,118 @@ export default function SalesDashboard({
                     type="text"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Filtro rápido por vendedor..."
+                    placeholder={isAdmin ? "Filtro rápido por vendedor..." : "Buscar por orden, producto o fecha..."}
                     className="w-full pl-9 pr-4 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#714B67]/20 focus:border-[#714B67] transition-all bg-white"
                   />
                 </div>
 
-                {filteredSummaries.length === 0 ? (
-                  <div className="text-center p-8 bg-slate-50 border border-slate-150 border-dashed rounded-xl">
-                    <span className="text-xs text-slate-400 italic">No se encontraron vendedores activos.</span>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
-                      <thead>
-                        <tr className="border-b border-slate-150 text-xs font-semibold text-slate-400 uppercase tracking-wider bg-slate-55">
-                          <th className="py-3 px-4">Nombre del Vendedor</th>
-                          <th className="py-3 px-4 text-center">Nº Pedidos</th>
-                          <th className="py-3 px-4 text-right">Monto Total de Ventas</th>
-                          <th className="py-3 px-4 text-right">Comisión Estimada</th>
-                          <th className="py-3 px-4 text-right">Acciones</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 text-sm">
-                        {filteredSummaries.map((summary) => (
-                          <tr key={summary.id} className="hover:bg-slate-50/50">
-                            <td className="py-4 px-4">
-                              <div className="flex items-center gap-2">
-                                <div className="h-8 w-8 rounded-full bg-purple-50 text-[#714B67] flex items-center justify-center font-bold text-xs">
-                                  {summary.name.charAt(0)}
-                                </div>
-                                <span className="font-semibold text-slate-700 text-sm">{summary.name}</span>
-                              </div>
-                            </td>
-                            <td className="py-4 px-4 text-center font-semibold text-slate-600">
-                              {summary.totalSalesCount}
-                            </td>
-                            <td className="py-4 px-4 text-right font-mono text-xs text-slate-600 font-medium">
-                              S/. {summary.totalRevenue.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </td>
-                            <td className="py-4 px-4 text-right">
-                              <span className="px-2.5 py-1 text-xs font-bold text-[#714B67] bg-purple-50 rounded-full font-mono border border-purple-100">
-                                S/. {summary.totalCommission.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </span>
-                            </td>
-                            <td className="py-4 px-4 text-right">
-                              <button
-                                onClick={() => onSelectSalesperson(summary)}
-                                className="px-3 py-1.5 text-xs font-bold text-[#714B67] bg-purple-50 hover:bg-purple-100 border border-purple-100 hover:border-purple-200 rounded-lg transition-all flex items-center gap-1 ml-auto cursor-pointer"
-                              >
-                                Detalle
-                                <ChevronRight className="h-3.5 w-3.5" />
-                              </button>
-                            </td>
+                {isAdmin ? (
+                  filteredSummaries.length === 0 ? (
+                    <div className="text-center p-8 bg-slate-50 border border-slate-150 border-dashed rounded-xl">
+                      <span className="text-xs text-slate-400 italic">No se encontraron vendedores activos.</span>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="border-b border-slate-150 text-xs font-semibold text-slate-400 uppercase tracking-wider bg-slate-55">
+                            <th className="py-3 px-4">Nombre del Vendedor</th>
+                            <th className="py-3 px-4 text-center">Nº Pedidos</th>
+                            <th className="py-3 px-4 text-right">Monto Total de Ventas</th>
+                            <th className="py-3 px-4 text-right">Comisión Estimada</th>
+                            <th className="py-3 px-4 text-right">Acciones</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 text-sm">
+                          {filteredSummaries.map((summary) => (
+                            <tr key={summary.id} className="hover:bg-slate-50/50">
+                              <td className="py-4 px-4">
+                                <div className="flex items-center gap-2">
+                                  <div className="h-8 w-8 rounded-full bg-purple-50 text-[#714B67] flex items-center justify-center font-bold text-xs">
+                                    {summary.name.charAt(0)}
+                                  </div>
+                                  <span className="font-semibold text-slate-700 text-sm">{summary.name}</span>
+                                </div>
+                              </td>
+                              <td className="py-4 px-4 text-center font-semibold text-slate-600">
+                                {summary.totalSalesCount}
+                              </td>
+                              <td className="py-4 px-4 text-right font-mono text-xs text-slate-600 font-medium">
+                                S/. {summary.totalRevenue.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </td>
+                              <td className="py-4 px-4 text-right">
+                                <span className="px-2.5 py-1 text-xs font-bold text-[#714B67] bg-purple-50 rounded-full font-mono border border-purple-100">
+                                  S/. {summary.totalCommission.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </span>
+                              </td>
+                              <td className="py-4 px-4 text-right">
+                                <button
+                                  onClick={() => onSelectSalesperson(summary)}
+                                  className="px-3 py-1.5 text-xs font-bold text-[#714B67] bg-purple-50 hover:bg-purple-100 border border-purple-100 hover:border-purple-200 rounded-lg transition-all flex items-center gap-1 ml-auto cursor-pointer"
+                                >
+                                  Detalle
+                                  <ChevronRight className="h-3.5 w-3.5" />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )
+                ) : (
+                  filteredCommissionLines.length === 0 ? (
+                    <div className="text-center p-8 bg-slate-50 border border-slate-150 border-dashed rounded-xl">
+                      <span className="text-xs text-slate-400 italic">No se encontraron líneas de comisiones con ese criterio de búsqueda.</span>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="border-b border-slate-150 text-xs font-semibold text-slate-400 uppercase tracking-wider bg-slate-55">
+                            <th className="py-3 px-4">Fecha</th>
+                            <th className="py-3 px-4">Orden</th>
+                            <th className="py-3 px-4">Producto</th>
+                            <th className="py-3 px-4 text-center">Cantidad</th>
+                            <th className="py-3 px-4 text-right">Monto Venta</th>
+                            <th className="py-3 px-4 text-center">Tarifa / Regla</th>
+                            <th className="py-3 px-4 text-right">Mi Comisión</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 text-sm">
+                          {filteredCommissionLines.map((line, idx) => (
+                            <tr key={`${line.orderName}-${idx}`} className="hover:bg-slate-50/50">
+                              <td className="py-4 px-4 text-xs font-medium text-slate-500 font-mono">
+                                {line.date}
+                              </td>
+                              <td className="py-4 px-4 font-semibold text-slate-700 font-mono text-xs">
+                                {line.orderName}
+                              </td>
+                              <td className="py-4 px-4 font-semibold text-slate-700">
+                                {line.productName}
+                              </td>
+                              <td className="py-4 px-4 text-center font-semibold text-slate-600 font-mono">
+                                {line.qtySold}
+                              </td>
+                              <td className="py-4 px-4 text-right font-mono text-xs text-slate-600 font-medium">
+                                S/. {line.revenue.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </td>
+                              <td className="py-4 px-4 text-center">
+                                <span className="px-2 py-0.5 text-[11px] font-semibold bg-slate-100 border border-slate-200 text-slate-600 rounded">
+                                  {line.ruleType === "percentage" ? `${line.ruleValue}%` : `S/. ${line.ruleValue} fijo`}
+                                </span>
+                              </td>
+                              <td className="py-4 px-4 text-right">
+                                <span className="px-2.5 py-1 text-xs font-bold text-[#714B67] bg-purple-50 rounded-full font-mono border border-purple-100">
+                                  S/. {line.commission.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )
                 )}
               </div>
             </div>

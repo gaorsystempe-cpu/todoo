@@ -4,7 +4,6 @@ import { MOCK_COMPANIES, MOCK_PRODUCTS, MOCK_ORDERS, MOCK_ORDER_LINES, INITIAL_M
 import OdooPortalLogin from "./components/OdooPortalLogin";
 import SalesDashboard from "./components/SalesDashboard";
 import ExpiryAlertsList from "./components/ExpiryAlertsList";
-import PosDailySum from "./components/PosDailySum";
 import OdooConnectionForm from "./components/OdooConnectionForm";
 import PortalUserManagement from "./components/PortalUserManagement";
 import SalespersonDetailsModal from "./components/SalespersonDetailsModal";
@@ -17,8 +16,21 @@ export default function App() {
     return saved === "true";
   });
 
-  const [activeTab, setActiveTab] = useState<"comisiones" | "caducidad" | "ventas_pos" | "configuracion">(() => {
+  const [currentUser, setCurrentUser] = useState<any>(() => {
+    const saved = localStorage.getItem("portal_currentUser");
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        // ignore
+      }
+    }
+    return null;
+  });
+
+  const [activeTab, setActiveTab] = useState<"comisiones" | "caducidad" | "configuracion">(() => {
     const saved = localStorage.getItem("portal_activeTab");
+    if (saved === "ventas_pos") return "comisiones";
     return (saved as any) || "comisiones";
   });
 
@@ -49,6 +61,22 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem("portal_isLoggedIn", isLoggedIn ? "true" : "false");
   }, [isLoggedIn]);
+
+  useEffect(() => {
+    if (currentUser) {
+      localStorage.setItem("portal_currentUser", JSON.stringify(currentUser));
+    } else {
+      localStorage.removeItem("portal_currentUser");
+    }
+  }, [currentUser]);
+
+  // Lock non-admin (vendedor) users to the comisiones tab and hide the app switcher
+  useEffect(() => {
+    if (isLoggedIn && currentUser && currentUser.role !== "admin") {
+      setActiveTab("comisiones");
+      setShowAppSwitcher(false);
+    }
+  }, [isLoggedIn, currentUser]);
 
   useEffect(() => {
     localStorage.setItem("portal_activeTab", activeTab);
@@ -266,6 +294,8 @@ export default function App() {
 
   const handleLogout = () => {
     setIsLoggedIn(false);
+    setCurrentUser(null);
+    localStorage.removeItem("portal_currentUser");
     setShowAppSwitcher(true);
     // Reset connection state partially
     setConnection({
@@ -274,7 +304,7 @@ export default function App() {
     });
   };
 
-  const handleAppSelect = (tab: "comisiones" | "caducidad" | "ventas_pos" | "configuracion") => {
+  const handleAppSelect = (tab: "comisiones" | "caducidad" | "configuracion") => {
     setActiveTab(tab);
     setShowAppSwitcher(false);
   };
@@ -286,13 +316,21 @@ export default function App() {
         connection={connection}
         onChangeConnection={handleConnectionChange}
         onDataLoaded={handleRealOdooDataLoaded}
-        onLoginSuccess={() => {
+        onLoginSuccess={(user) => {
           setIsLoggedIn(true);
-          setShowAppSwitcher(true);
+          setCurrentUser(user);
+          if (user && user.role !== "admin") {
+            setShowAppSwitcher(false);
+            setActiveTab("comisiones");
+          } else {
+            setShowAppSwitcher(true);
+          }
         }}
       />
     );
   }
+
+  const isAdmin = !currentUser || currentUser.role === "admin";
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-800">
@@ -304,13 +342,15 @@ export default function App() {
           {/* Left Controls: App switcher grid, breadcrumbs & app identifier */}
           <div className="flex items-center gap-4">
             {/* todoo 9-dots App Launcher Switcher */}
-            <button
-              onClick={() => setShowAppSwitcher(!showAppSwitcher)}
-              className="p-1.5 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
-              title="Selector de Aplicaciones todoo"
-            >
-              <Grid className="h-5.5 w-5.5" />
-            </button>
+            {isAdmin && (
+              <button
+                onClick={() => setShowAppSwitcher(!showAppSwitcher)}
+                className="p-1.5 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
+                title="Selector de Aplicaciones todoo"
+              >
+                <Grid className="h-5.5 w-5.5" />
+              </button>
+            )}
 
             {/* Breadcrumbs / Branding */}
             <div className="flex items-center gap-2">
@@ -329,12 +369,6 @@ export default function App() {
                     <span>Lotes y Caducidad</span>
                   </>
                 )}
-                {activeTab === "ventas_pos" && (
-                  <>
-                    <ShoppingBag className="h-4 w-4 text-sky-400" />
-                    <span>Ventas POS Diarias</span>
-                  </>
-                )}
                 {activeTab === "configuracion" && (
                   <>
                     <Settings className="h-4 w-4 text-indigo-400" />
@@ -346,64 +380,73 @@ export default function App() {
           </div>
 
           {/* Center Navigation Menu Bar like Odoo 19 Studio / Portal */}
-          <div className="hidden md:flex items-center gap-1 bg-black/15 p-1 rounded-xl border border-white/5">
-            <button
-              onClick={() => handleAppSelect("comisiones")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                activeTab === "comisiones"
-                  ? "bg-white text-[#714B67] shadow-sm"
-                  : "text-purple-100 hover:text-white hover:bg-white/5"
-              }`}
-            >
-              Liquidación
-            </button>
-            <button
-              onClick={() => handleAppSelect("caducidad")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                activeTab === "caducidad"
-                  ? "bg-white text-[#714B67] shadow-sm"
-                  : "text-purple-100 hover:text-white hover:bg-white/5"
-              }`}
-            >
-              Fecha Caducidad Lotes
-            </button>
-            <button
-              onClick={() => handleAppSelect("ventas_pos")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                activeTab === "ventas_pos"
-                  ? "bg-white text-[#714B67] shadow-sm"
-                  : "text-purple-100 hover:text-white hover:bg-white/5"
-              }`}
-            >
-              Auditoría POS
-            </button>
-            <button
-              onClick={() => handleAppSelect("configuracion")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                activeTab === "configuracion"
-                  ? "bg-white text-[#714B67] shadow-sm"
-                  : "text-purple-100 hover:text-white hover:bg-white/5"
-              }`}
-            >
-              Configuración ERP
-            </button>
-          </div>
+          {isAdmin && (
+            <div className="hidden md:flex items-center gap-1 bg-black/15 p-1 rounded-xl border border-white/5">
+              <button
+                onClick={() => handleAppSelect("comisiones")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                  activeTab === "comisiones"
+                    ? "bg-white text-[#714B67] shadow-sm"
+                    : "text-purple-100 hover:text-white hover:bg-white/5"
+                }`}
+              >
+                Liquidación
+              </button>
+              <button
+                onClick={() => handleAppSelect("caducidad")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                  activeTab === "caducidad"
+                    ? "bg-white text-[#714B67] shadow-sm"
+                    : "text-purple-100 hover:text-white hover:bg-white/5"
+                }`}
+              >
+                Fecha Caducidad Lotes
+              </button>
+              <button
+                onClick={() => handleAppSelect("configuracion")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                  activeTab === "configuracion"
+                    ? "bg-white text-[#714B67] shadow-sm"
+                    : "text-purple-100 hover:text-white hover:bg-white/5"
+                }`}
+              >
+                Configuración ERP
+              </button>
+            </div>
+          )}
 
           {/* Right Controls: Database details, Company & Logout */}
           <div className="flex items-center gap-3">
             
+            {/* User Profile Badge */}
+            {currentUser && (
+              <div className="flex items-center gap-1.5 bg-black/20 px-3 py-1.5 rounded-xl text-xs font-semibold text-white border border-white/10">
+                <div className="h-5 w-5 rounded-full bg-[#00A09D] flex items-center justify-center text-[10px] font-bold text-white uppercase select-none">
+                  {currentUser.name.charAt(0)}
+                </div>
+                <span className="hidden md:inline text-purple-100 text-[11px] font-medium">{currentUser.name}</span>
+                <span className="bg-[#00A09D] text-[8px] uppercase px-1.5 py-0.5 rounded text-white font-extrabold tracking-wider select-none">
+                  {currentUser.role === "admin" ? "Admin" : "Vendedor"}
+                </span>
+              </div>
+            )}
+
             {/* Active Company Name tag */}
-            <div className="hidden lg:flex items-center gap-1.5 bg-black/20 px-3 py-1.5 rounded-xl border border-white/10 text-xs">
-              <Building2 className="h-3.5 w-3.5 text-purple-200" />
-              <span className="font-semibold text-purple-100 max-w-[180px] truncate">
-                {connection.companyName}
-              </span>
-            </div>
+            {isAdmin && (
+              <div className="hidden lg:flex items-center gap-1.5 bg-black/20 px-3 py-1.5 rounded-xl border border-white/10 text-xs">
+                <Building2 className="h-3.5 w-3.5 text-purple-200" />
+                <span className="font-semibold text-purple-100 max-w-[180px] truncate">
+                  {connection.companyName}
+                </span>
+              </div>
+            )}
 
             {/* Sync connection details badge */}
-            <div className="hidden sm:inline-flex items-center gap-1 bg-white/10 px-2 py-1 rounded-lg text-[10px] font-mono text-purple-200">
-              {connection.isDemoMode ? "DB: demo_peru" : `DB: ${connection.db}`}
-            </div>
+            {isAdmin && (
+              <div className="hidden sm:inline-flex items-center gap-1 bg-white/10 px-2 py-1 rounded-lg text-[10px] font-mono text-purple-200">
+                {connection.isDemoMode ? "DB: demo_peru" : `DB: ${connection.db}`}
+              </div>
+            )}
 
             {/* Exit/Logout Button */}
             <button
@@ -445,7 +488,7 @@ export default function App() {
               </div>
 
               {/* Launcher Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-6 max-w-5xl mx-auto">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 max-w-4xl mx-auto">
                 
                 {/* Module 1 */}
                 <button
@@ -479,23 +522,7 @@ export default function App() {
                   </div>
                 </button>
 
-                {/* Module 3 */}
-                <button
-                  onClick={() => handleAppSelect("ventas_pos")}
-                  className="bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 p-6 rounded-2xl text-left transition-all hover:-translate-y-1 flex flex-col justify-between h-48 cursor-pointer group"
-                >
-                  <div className="p-3 bg-[#00A09D] text-white rounded-xl w-fit group-hover:scale-105 transition-transform">
-                    <ShoppingBag className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-bold text-white block">Ventas Diarias POS</h3>
-                    <p className="text-[11px] text-slate-400 mt-1 line-clamp-2">
-                      Métricas diarias del punto de venta por método de pago y tipo de boleta/factura.
-                    </p>
-                  </div>
-                </button>
-
-                {/* Module 4 */}
+                {/* Module 3 (antes Module 4) */}
                 <button
                   onClick={() => handleAppSelect("configuracion")}
                   className="bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 p-6 rounded-2xl text-left transition-all hover:-translate-y-1 flex flex-col justify-between h-48 cursor-pointer group"
@@ -525,7 +552,7 @@ export default function App() {
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 relative z-10">
         
         {/* Connection status bar context (minimalist, Odoo styled) */}
-        {connection.isDemoMode && (
+        {connection.isDemoMode && isAdmin && (
           <div className="mb-6 p-4 bg-purple-50/70 border border-[#714B67]/20 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
             <div className="flex items-center gap-2">
               <BadgeInfo className="h-5 w-5 text-[#714B67] shrink-0" />
@@ -561,6 +588,7 @@ export default function App() {
                   onSaveRule={handleSaveCommissionRule}
                   onRemoveRule={handleRemoveCommissionRule}
                   onSelectSalesperson={(summary) => setSelectedSalesperson(summary)}
+                  currentUser={currentUser}
                 />
               </motion.div>
             )}
@@ -575,24 +603,6 @@ export default function App() {
               >
                 <ExpiryAlertsList
                   expiryAlerts={expiryAlerts}
-                  isDemoMode={connection.isDemoMode}
-                  onRefresh={handleManualSync}
-                />
-              </motion.div>
-            )}
-
-            {activeTab === "ventas_pos" && (
-              <motion.div
-                key="pos-enterprise"
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -15 }}
-                transition={{ duration: 0.2 }}
-              >
-                <PosDailySum
-                  reports={posReports}
-                  posSessions={posSessions}
-                  posTransactions={posTransactions}
                   isDemoMode={connection.isDemoMode}
                   onRefresh={handleManualSync}
                 />
@@ -644,7 +654,7 @@ export default function App() {
               <span>GAORSYSTEM PERU</span>
             </div>
             <p className="text-slate-400">
-              Sistema de información para los negocios - Comisiones, Lotes y Ventas POS.
+              Sistema de información para los negocios - Comisiones y Control de Caducidad de Lotes.
             </p>
           </div>
           <div className="space-y-1 sm:text-right text-slate-400">

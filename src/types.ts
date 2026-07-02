@@ -128,6 +128,7 @@ export interface PosSession {
 
 export interface PosTransactionDetail {
   id: number;
+  sessionId?: number;
   sessionName: string;
   invoiceName: string; // Comprobante
   client: string; // Cliente

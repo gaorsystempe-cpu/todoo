@@ -328,7 +328,15 @@ async function getDBAsync(): Promise<any> {
     try {
       const rUsers = await supabase.from("portal_users").select("*");
       if (!rUsers.error && rUsers.data) {
-        remoteUsers = rUsers.data;
+        // Merge users from local and remote by username, prioritizing remote if duplicates exist
+        const userMap = new Map<string, any>();
+        (localData.users || []).forEach((u: any) => {
+          if (u && u.username) userMap.set(u.username.toLowerCase().trim(), u);
+        });
+        (rUsers.data || []).forEach((u: any) => {
+          if (u && u.username) userMap.set(u.username.toLowerCase().trim(), u);
+        });
+        remoteUsers = Array.from(userMap.values());
       }
     } catch (e) {
       console.log("[Supabase] Tabla portal_users no disponible remota, usando local.");
@@ -1088,6 +1096,7 @@ async function startServer() {
       let posReports: any[] = [];
       let posOrders: any[] = [];
       const linesByOrderId: { [orderId: number]: any[] } = {};
+      const paymentsByOrderId: { [orderId: number]: any[] } = {};
 
       try {
         console.log("Buscando órdenes pos.order con filtro de compañía...");
@@ -1103,7 +1112,7 @@ async function startServer() {
               ["state", "in", ["draft", "paid", "done", "invoiced"]]
             ]],
             { 
-              fields: ["id", "name", "date_order", "amount_total", "lines", "invoice_id", "session_id", "partner_id"],
+              fields: ["id", "name", "date_order", "amount_total", "lines", "invoice_id", "session_id", "partner_id", "payment_ids"],
               order: "date_order desc",
               limit: 500,
               context: { allowed_company_ids: [companyIdInt] }
@@ -1122,7 +1131,7 @@ async function startServer() {
               ["state", "in", ["draft", "paid", "done", "invoiced"]]
             ]],
             { 
-              fields: ["id", "name", "date_order", "amount_total", "lines", "session_id", "partner_id"],
+              fields: ["id", "name", "date_order", "amount_total", "lines", "session_id", "partner_id", "payment_ids"],
               order: "date_order desc",
               limit: 500,
               context: { allowed_company_ids: [companyIdInt] }
@@ -1144,7 +1153,7 @@ async function startServer() {
                 ["state", "in", ["draft", "paid", "done", "invoiced"]]
               ]],
               { 
-                fields: ["id", "name", "date_order", "amount_total", "lines", "session_id", "partner_id"],
+                fields: ["id", "name", "date_order", "amount_total", "lines", "session_id", "partner_id", "payment_ids"],
                 order: "date_order desc",
                 limit: 500
               }
@@ -1186,6 +1195,37 @@ async function startServer() {
             }
           } catch (lineErr) {
             console.log("Fallo al buscar pos.order.line:", lineErr);
+          }
+
+          // Fetch real payments from pos.payment to map exact payment methods (e.g. cash, tarjeta, yape)
+          try {
+            console.log("Buscando pagos POS (pos.payment)...");
+            const rawPayments = await makeOdooCall(url, "/xmlrpc/2/object", "execute_kw", [
+              db,
+              uidInt,
+              password,
+              "pos.payment",
+              "search_read",
+              [[
+                ["pos_order_id", "in", orderIds]
+              ]],
+              {
+                fields: ["id", "pos_order_id", "payment_method_id", "amount"]
+              }
+            ]);
+
+            if (Array.isArray(rawPayments)) {
+              console.log(`Se encontraron ${rawPayments.length} pagos reales de pos.payment.`);
+              rawPayments.forEach((p: any) => {
+                const oId = p.pos_order_id && Array.isArray(p.pos_order_id) ? p.pos_order_id[0] : p.pos_order_id;
+                if (oId) {
+                  if (!paymentsByOrderId[oId]) paymentsByOrderId[oId] = [];
+                  paymentsByOrderId[oId].push(p);
+                }
+              });
+            }
+          } catch (payErr: any) {
+            console.log("Fallo al buscar pos.payment:", payErr.message || payErr);
           }
 
           // Group by day format YYYY-MM-DD using Peru local time
@@ -1264,7 +1304,7 @@ async function startServer() {
       const revenueBySessionId: { [sessId: number]: number } = {};
       if (Array.isArray(posOrders)) {
         posOrders.forEach((order: any) => {
-          const sessId = order.session_id && Array.isArray(order.session_id) ? order.session_id[0] : null;
+          const sessId = order.session_id && Array.isArray(order.session_id) ? order.session_id[0] : order.session_id;
           if (sessId) {
             revenueBySessionId[sessId] = (revenueBySessionId[sessId] || 0) + (order.amount_total || 0);
           }
@@ -1364,8 +1404,8 @@ async function startServer() {
         // If posSessions is empty but we have real orders, extract sessions dynamically from the orders
         const uniqueSessionIds = new Set<number>();
         posOrders.forEach((order: any) => {
-          const sId = order.session_id && Array.isArray(order.session_id) ? order.session_id[0] : null;
-          const sName = order.session_id && Array.isArray(order.session_id) ? order.session_id[1] : null;
+          const sId = order.session_id && Array.isArray(order.session_id) ? order.session_id[0] : order.session_id;
+          const sName = order.session_id && Array.isArray(order.session_id) ? order.session_id[1] : (order.session_id ? `Turno #${order.session_id}` : `Turno #${order.id}`);
           if (sId && !uniqueSessionIds.has(sId)) {
             uniqueSessionIds.add(sId);
             sessions.push({
@@ -1387,14 +1427,34 @@ async function startServer() {
       // Build real transactions from real orders if available
       if (Array.isArray(posOrders) && posOrders.length > 0) {
         let txId = 9001;
-        const methods = ["Efectivo", "Yape / Plin", "Tarjeta de Crédito/Débito"];
         posOrders.forEach((order: any) => {
           const orderLines = linesByOrderId[order.id] || [];
-          const sessName = order.session_id && Array.isArray(order.session_id) ? order.session_id[1] : `Turno #${order.id}`;
+          const sId = order.session_id && Array.isArray(order.session_id) ? order.session_id[0] : order.session_id;
+          const sessName = order.session_id && Array.isArray(order.session_id) ? order.session_id[1] : (order.session_id ? `Turno #${order.session_id}` : `Turno #${order.id}`);
           const clientName = order.partner_id && Array.isArray(order.partner_id) ? order.partner_id[1] : "Clientes Varios";
           const dateStr = order.date_order ? order.date_order.replace("T", " ").replace("Z", "").split(".")[0] : new Date().toISOString().split("T")[0];
           const invoiceName = order.name || `TKT-${order.id}`;
-          const paymentMethod = methods[order.id % methods.length];
+
+          // Resolve real payment methods from pos.payment
+          let paymentMethod = "Efectivo";
+          const orderPmts = paymentsByOrderId[order.id] || [];
+          if (orderPmts.length > 0) {
+            const pNames = orderPmts.map(p => {
+              if (p.payment_method_id && Array.isArray(p.payment_method_id)) {
+                return p.payment_method_id[1];
+              } else if (p.payment_method_id) {
+                return String(p.payment_method_id);
+              }
+              return "Efectivo";
+            });
+            const uniqueNames = Array.from(new Set(pNames)).filter(Boolean);
+            if (uniqueNames.length > 0) {
+              paymentMethod = uniqueNames.join(" / ");
+            }
+          } else {
+            const fallbacks = ["Efectivo", "Yape", "Plin", "Tarjeta"];
+            paymentMethod = fallbacks[order.id % fallbacks.length];
+          }
 
           orderLines.forEach((line: any) => {
             const prodName = line.product_id && Array.isArray(line.product_id) ? line.product_id[1] : "Producto POS";
@@ -1406,6 +1466,7 @@ async function startServer() {
 
             txs.push({
               id: txId++,
+              sessionId: sId,
               sessionName: sessName,
               invoiceName: invoiceName,
               client: clientName,
@@ -1591,6 +1652,14 @@ async function startServer() {
 
     db.users = db.users.filter((u: any) => u.username.toLowerCase().trim() !== username.toLowerCase().trim());
     await saveDBAsync(db);
+
+    if (supabase) {
+      try {
+        await supabase.from("portal_users").delete().eq("username", username.toLowerCase().trim());
+      } catch (supabaseErr: any) {
+        console.warn("[Supabase] Error al eliminar de portal_users:", supabaseErr.message || supabaseErr);
+      }
+    }
 
     res.json({ success: true, users: db.users });
   });
