@@ -234,7 +234,7 @@ function getDB() {
 // Supabase Client Initialization
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
-const supabaseSchema = process.env.SUPABASE_SCHEMA || "todoo_control";
+let supabaseSchema = process.env.SUPABASE_SCHEMA || "todoo_control";
 
 let supabase: any = null;
 if (supabaseUrl && supabaseKey) {
@@ -260,7 +260,9 @@ async function getDBAsync(): Promise<any> {
   }
 
   try {
-    const [
+    let rRules: any, rProducts: any, rOrders: any, rOrderLines: any, rExpiryAlerts: any, rPosReports: any, rPosSessions: any, rPosTransactions: any;
+
+    [
       rRules,
       rProducts,
       rOrders,
@@ -279,6 +281,50 @@ async function getDBAsync(): Promise<any> {
       supabase.from("posSessions").select("*"),
       supabase.from("posTransactions").select("*")
     ]);
+
+    // Check if there is a schema error or relation does not exist error under custom schema
+    const isSchemaError = [
+      rRules, rProducts, rOrders, rOrderLines, rExpiryAlerts, rPosReports, rPosSessions, rPosTransactions
+    ].some(res => res.error && (
+      res.error.message?.includes("does not exist") || 
+      res.error.message?.includes("schema") ||
+      res.error.status === 404
+    ));
+
+    if (isSchemaError && supabaseSchema !== "public") {
+      console.warn(`[Supabase] El esquema "${supabaseSchema}" o sus tablas no existen en el VPS. Reintentando de manera transparente con el esquema por defecto "public"...`);
+      try {
+        supabaseSchema = "public";
+        supabase = createClient(supabaseUrl, supabaseKey, {
+          db: {
+            schema: "public"
+          }
+        });
+
+        [
+          rRules,
+          rProducts,
+          rOrders,
+          rOrderLines,
+          rExpiryAlerts,
+          rPosReports,
+          rPosSessions,
+          rPosTransactions
+        ] = await Promise.all([
+          supabase.from("rules").select("*"),
+          supabase.from("products").select("*"),
+          supabase.from("orders").select("*"),
+          supabase.from("orderLines").select("*"),
+          supabase.from("expiryAlerts").select("*"),
+          supabase.from("posReports").select("*"),
+          supabase.from("posSessions").select("*"),
+          supabase.from("posTransactions").select("*")
+        ]);
+        console.log("[Supabase] Reintento con esquema 'public' completado.");
+      } catch (retryErr: any) {
+        console.error("[Supabase] Error al intentar re-inicializar en esquema 'public':", retryErr.message || retryErr);
+      }
+    }
 
     const hasAuthError = [
       rRules, rProducts, rOrders, rOrderLines, rExpiryAlerts, rPosReports, rPosSessions, rPosTransactions
