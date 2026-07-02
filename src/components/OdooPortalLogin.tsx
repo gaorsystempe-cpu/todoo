@@ -20,6 +20,7 @@ export default function OdooPortalLogin({
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [heroSrc, setHeroSrc] = useState<string>(heroImage);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -90,18 +91,22 @@ export default function OdooPortalLogin({
             
             <div className="space-y-3">
               <h2 className="text-2xl sm:text-3xl font-black leading-tight tracking-tight text-white">
-                Gestión de Comisiones
+                Portal de Comisiones
               </h2>
               <p className="text-xs sm:text-sm text-purple-100/90 font-medium leading-relaxed">
-                Acceda a su portal unificado para supervisar sus liquidaciones de comisiones, ventas acumuladas e indicadores en tiempo real.
+                Supervise sus liquidaciones de ventas e indicadores en tiempo real.
               </p>
             </div>
           </div>
 
-          {/* Dynamic Generated Dashboard Preview from earlier step */}
+          {/* Dynamic Generated Dashboard Preview with Vercel fallbacks */}
           <div className="relative z-10 my-6">
             <img
-              src={heroImage}
+              src={heroSrc}
+              onError={() => {
+                console.warn("[Vercel Fallback] Failed to load local image, falling back to reliable dashboard mockup from Unsplash.");
+                setHeroSrc("https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=800&q=80");
+              }}
               alt="todoo Portal Dashboard"
               referrerPolicy="no-referrer"
               className="rounded-2xl shadow-xl border border-white/10 max-h-[180px] object-cover w-full transform hover:scale-[1.02] transition-transform duration-300"
@@ -121,7 +126,7 @@ export default function OdooPortalLogin({
               Ingresar al Portal
             </h3>
             <p className="text-xs text-slate-400 mt-1.5 font-medium leading-relaxed">
-              Introduzca sus credenciales autorizadas de colaborador para ingresar al sistema de información corporativo.
+              Introduzca sus credenciales para acceder a su panel de control.
             </p>
           </div>
 

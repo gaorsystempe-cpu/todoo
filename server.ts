@@ -1547,13 +1547,24 @@ async function startServer() {
 
     try {
       const db = await getDBAsync();
-      const user = db && Array.isArray(db.users) ? db.users.find(
-        (u: any) => u && typeof u.username === "string" && u.username.toLowerCase().trim() === username.toLowerCase().trim() && u.password === password
-      ) : null;
+      const cleanUsername = username.toLowerCase().trim();
+      const cleanPassword = String(password).trim();
+
+      const registeredUsers = db && Array.isArray(db.users) ? db.users : [];
+      console.log(`[Portal Login] Intento de ingreso para el usuario: "${cleanUsername}"`);
+      console.log(`[Portal Login] Usuarios registrados en el sistema:`, registeredUsers.map(u => ({ username: u.username, role: u.role, hasPassword: !!u.password })));
+
+      const user = registeredUsers.find((u: any) => {
+        if (!u || typeof u.username !== "string") return false;
+        const dbUser = u.username.toLowerCase().trim();
+        const dbPass = u.password !== undefined && u.password !== null ? String(u.password).trim() : "";
+        return dbUser === cleanUsername && dbPass === cleanPassword;
+      });
 
       const odooConnection = db.odooConnection || null;
 
       if (user) {
+        console.log(`[Portal Login] Autenticación exitosa para: "${cleanUsername}" con rol: "${user.role}"`);
         return res.json({
           success: true,
           user: {
