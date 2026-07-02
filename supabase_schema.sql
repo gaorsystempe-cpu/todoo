@@ -89,5 +89,14 @@ CREATE TABLE IF NOT EXISTS todoo_control."posTransactions" (
   "paymentMethod" VARCHAR(100)
 );
 
+-- 10. Tabla de Usuarios del Portal
+CREATE TABLE IF NOT EXISTS todoo_control."portal_users" (
+  "username" VARCHAR(150) PRIMARY KEY,
+  "password" TEXT NOT NULL,
+  "name" TEXT NOT NULL,
+  "role" VARCHAR(50) DEFAULT 'user',
+  "odoo_partner_id" INT
+);
+
 -- Habilitar RLS (Row Level Security) es opcional si se trabaja con Service Key.
 -- Si desea mayor seguridad, puede configurar políticas personalizadas de acceso.

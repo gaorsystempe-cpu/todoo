@@ -378,9 +378,12 @@ async function handleMockRequest(urlStr: string, init?: RequestInit): Promise<Re
       return jsonResponse({ success: false, message: "Usuario y contraseña requeridos." }, 400);
     }
 
-    const matchedUser = db.users.find(
-      (u: any) => u.username?.toLowerCase().trim() === username.toLowerCase().trim() && u.password === password
-    );
+    const matchedUser = db.users.find((u: any) => {
+      if (!u || typeof u.username !== "string") return false;
+      const dbUser = u.username.toLowerCase().trim();
+      const dbPass = u.password !== undefined && u.password !== null ? String(u.password).trim() : "";
+      return dbUser === username.toLowerCase().trim() && dbPass === String(password).trim();
+    });
 
     if (matchedUser) {
       return jsonResponse({
@@ -448,7 +451,7 @@ async function handleMockRequest(urlStr: string, init?: RequestInit): Promise<Re
     }
 
     saveLocalDB(db);
-    return jsonResponse({ success: true, message: "Usuario guardado exitosamente." });
+    return jsonResponse({ success: true, message: "Usuario guardado exitosamente.", users: db.users });
   }
 
   // 5. REMOVE USER
@@ -463,7 +466,7 @@ async function handleMockRequest(urlStr: string, init?: RequestInit): Promise<Re
     );
 
     saveLocalDB(db);
-    return jsonResponse({ success: true, message: "Usuario eliminado." });
+    return jsonResponse({ success: true, message: "Usuario eliminado.", users: db.users });
   }
 
   // 6. SAVE RULE
